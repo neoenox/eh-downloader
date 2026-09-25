@@ -29,3 +29,41 @@ jobs:
 
       - name: Integration test (fetch-mocked)
         run: node test_eh_download.mjs
+
+  notify:
+    name: Notify Slack on failure
+    needs: test
+    # 通知の重複を避けるため PR では発火させず main への push のみ対象
+    if: ${{ always() && needs.test.result == 'failure' && github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v2
+        with:
+          # シークレット SLACK_WEBHOOK_URL に Incoming Webhook URL を設定してください
+          # (リポジトリ Settings > Secrets and variables > Actions > New repository secret)
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ":rotating_light: CI が失敗しました",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":rotating_light: *CI が失敗しました* (`${{ github.repository }}`)\n*Branch:* `${{ github.ref_name }}`\n*Commit:* `${{ github.sha }}`\n*Author:* `${{ github.actor }}`\n*Message:* ${{ github.event.head_commit.message }}"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": { "type": "plain_text", "text": "失敗した Run を見る" },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    }
+                  ]
+                }
+              ]
+            }
