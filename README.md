@@ -6,7 +6,7 @@
 [![Node.js](https://img.shields.io/badge/node-%E2%89%A518-339933.svg?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Issues](https://img.shields.io/github/issues/neoenox/eh-downloader?style=flat-square&label=issues)](https://github.com/neoenox/eh-downloader/issues)
 
-**日本語** | [English](#english)
+**日本語** | [English](#english) | [Social preview 設定ガイド](docs/social-preview.md)
 
 E-Hentai のギャラリー画像を一括ダウンロードし、WebP → PNG/JPEG に一括変換する Node.js スクリプト集です。
 
@@ -167,7 +167,7 @@ node convert_images.mjs "3553112_badpeach - ..." --format jpeg --del
 [![Release](https://img.shields.io/github/v/release/neoenox/eh-downloader?style=flat-square&logo=github&label=release)](https://github.com/neoenox/eh-downloader/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg?style=flat-square)](LICENSE)
 
-**English** | [日本語](#e-hentai-ダウンロード-画像変換ツール)
+**English** | [日本語](#e-hentai-ダウンロード-画像変換ツール) | [Social preview guide](docs/social-preview.md)
 
 A set of Node.js scripts to batch-download E-Hentai galleries and convert the downloaded WebP images to PNG/JPEG.
 
