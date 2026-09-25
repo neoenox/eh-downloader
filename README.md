@@ -1,8 +1,10 @@
 # E-Hentai ダウンロード & 画像変換ツール
 
-[![CI](https://github.com/neoenox/eh-downloader/actions/workflows/ci.yml/badge.svg)](https://github.com/neoenox/eh-downloader/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/neoenox/eh-downloader)](https://github.com/neoenox/eh-downloader/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/neoenox/eh-downloader/actions/workflows/ci.yml/badge.svg?style=flat-square&label=CI)](https://github.com/neoenox/eh-downloader/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/neoenox/eh-downloader?style=flat-square&logo=github&label=release)](https://github.com/neoenox/eh-downloader/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg?style=flat-square)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%E2%89%A518-339933.svg?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Issues](https://img.shields.io/github/issues/neoenox/eh-downloader?style=flat-square&label=issues)](https://github.com/neoenox/eh-downloader/issues)
 
 E-Hentai のギャラリー画像を一括ダウンロードし、WebP → PNG/JPEG に一括変換する Node.js スクリプト集です。
 
