@@ -6,6 +6,8 @@
 [![Node.js](https://img.shields.io/badge/node-%E2%89%A518-339933.svg?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Issues](https://img.shields.io/github/issues/neoenox/eh-downloader?style=flat-square&label=issues)](https://github.com/neoenox/eh-downloader/issues)
 
+**日本語** | [English](#english)
+
 E-Hentai のギャラリー画像を一括ダウンロードし、WebP → PNG/JPEG に一括変換する Node.js スクリプト集です。
 
 ## 必要環境
@@ -153,5 +155,157 @@ node convert_images.mjs "3553112_badpeach - ..." --format jpeg --del
 利用は各サイトの利用規約と各国の法律を遵守のうえ、自己責任でお願いします。過度なアクセスは IP 制限の対象になるため `--parallel` は 2〜3、`--delay` は 1 秒以上を推奨します。
 
 ## ライセンス
+
+[MIT License](LICENSE) — Copyright (c) 2026 neoenox
+
+---
+
+<a id="english"></a>
+# E-Hentai Downloader & Image Converter (English)
+
+[![CI](https://github.com/neoenox/eh-downloader/actions/workflows/ci.yml/badge.svg?style=flat-square&label=CI)](https://github.com/neoenox/eh-downloader/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/neoenox/eh-downloader?style=flat-square&logo=github&label=release)](https://github.com/neoenox/eh-downloader/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg?style=flat-square)](LICENSE)
+
+**English** | [日本語](#e-hentai-ダウンロード-画像変換ツール)
+
+A set of Node.js scripts to batch-download E-Hentai galleries and convert the downloaded WebP images to PNG/JPEG.
+
+## Requirements
+
+- [Node.js](https://nodejs.org/) v18+ (has built-in `fetch`)
+- **sharp** is only required for image conversion (`convert_images.mjs`):
+  ```bash
+  npm install sharp
+  ```
+
+## Files
+
+| File | Purpose |
+|---|---|
+| `eh_download.mjs` | Batch gallery downloader |
+| `convert_images.mjs` | WebP → PNG/JPEG batch converter |
+| `download.bat` / `convert.bat` | Windows launchers (double-click for interactive mode) |
+| `urls.txt` | URL list for batch downloads (create your own) |
+| `test_eh_download.mjs` | Integration test (fetch-mocked, run with `node test_eh_download.mjs`) |
+
+## 1. Download: `eh_download.mjs`
+
+### Single gallery / multiple galleries
+
+```bash
+node eh_download.mjs <gallery URL...> [output dir] [options]
+
+# Examples
+node eh_download.mjs https://e-hentai.org/g/3553112/f4c015ef04/
+node eh_download.mjs https://e-hentai.org/g/3553112/f4c015ef04/ ./pics --original
+
+# Multiple galleries can be passed space-separated (runs as a batch)
+node eh_download.mjs https://e-hentai.org/g/AAA/xxx/ https://e-hentai.org/g/BBB/yyy/
+```
+
+### Batch via a URL list file
+
+Create a text file with one URL per line (`#` comments and blank lines are OK, duplicates are removed automatically):
+
+```text
+# urls.txt example
+https://e-hentai.org/g/3553112/f4c015ef04/
+https://e-hentai.org/g/1234567/abcdef1234/  # end-of-line comments work too
+```
+
+```bash
+node eh_download.mjs --list urls.txt                # --list is optional
+node eh_download.mjs urls.txt ./pics --parallel 3   # output dir and options also work
+```
+
+> Note: URLs, list files and output dirs are auto-detected. Arguments starting with `https://` are gallery URLs, an existing file is treated as a list file, and anything else is the output directory. Combining `--list` with direct URLs is an error.
+
+If one gallery fails (dead link, deleted, etc.), the rest continue and a summary is printed at the end. Failed URLs are written to `failed_urls.txt` so you can retry with `node eh_download.mjs --list failed_urls.txt`.
+
+### Options
+
+| Option | Description |
+|---|---|
+| `--parallel N` (`-j N`) | Concurrent connections (default: 2, recommended 2–3) |
+| `--original` | Try original quality (**requires login cookies**; falls back to normal quality on failure) |
+| `--cookie "..."` | Cookie string (required for `exhentai.org` and `--original`). Also via the `EH_COOKIE` env var |
+| `--list <file>` | Batch process a URL list file (cannot be combined with direct URLs — exits with an error) |
+| `--delay SEC` | Delay between requests (default: 1.2) |
+| `--help` | Show help |
+
+### Key behaviors
+
+- **Resume**: re-running skips already-downloaded files; progress is tracked in each folder's `index.json`
+- **509 handling**: the request interval is shared across all connections, so the request rate stays the same as sequential. When a 509/bandwidth limit is detected, all connections pause and retry automatically
+- **Output**: `<gallery ID>_<title>/01.webp, 02.webp, ...` (sequential file names)
+
+### Notes
+
+- **Original quality requires login.** Without cookies you get the resampled display image (max 1280px, WebP)
+- If a temporary 509 limit hits, wait a while and re-run to resume where you left off
+
+---
+
+## 2. Convert: `convert_images.mjs`
+
+Batch-converts downloaded WebP images to PNG/JPEG.
+
+```bash
+node convert_images.mjs <image dir> [options]
+
+# Examples
+node convert_images.mjs "3553112_gallery title"               # to PNG
+node convert_images.mjs ./pics --format jpeg --quality 90     # JPEG (quality 90)
+node convert_images.mjs ./pics --out ./png_out                # custom output dir
+node convert_images.mjs ./pics --force                        # re-convert existing outputs
+node convert_images.mjs ./pics --del                          # delete source WebP after success
+```
+
+### Options
+
+| Option | Description |
+|---|---|
+| `--format F` | Output format: `png` / `jpeg` (`jpg` accepted). Default: `png` |
+| `--quality N` | JPEG quality 1–100 (default: 90; ignored for PNG) |
+| `--out DIR` | Output directory (default: `<input DIR>/png` or `<input DIR>/jpeg`) |
+| `--parallel N` | Concurrent conversions (default: CPU cores, max 4) |
+| `--force` | Re-convert files that already have output |
+| `--del` | Delete the source WebP after successful conversion (⚠ unrecoverable) |
+| `--help` | Show help |
+
+### Notes
+
+- **PNG is lossless, so files get much larger** (measured: ~13× WebP). For size, prefer `--format jpeg --quality 90` (measured: ~1.9×)
+- Existing valid outputs are skipped, so re-running is safe
+
+---
+
+## Typical workflow
+
+```bash
+# 1. Prepare a URL list and batch-download (3 concurrent connections)
+node eh_download.mjs urls.txt --parallel 3
+
+# 2. Convert the downloaded folder to JPEG
+node convert_images.mjs "3553112_gallery title" --format jpeg --quality 90
+
+# 3. Optionally delete the original WebP
+node convert_images.mjs "3553112_gallery title" --format jpeg --del
+```
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Success |
+| `2` | Partial failure (`failed_urls.txt` / retry with a re-run) |
+| `1` | Fatal error (invalid URL, missing args, etc.) |
+
+## Disclaimer
+
+Use at your own risk and in compliance with each site's terms of service and local laws. Excessive access can lead to IP bans, so keep `--parallel` at 2–3 and `--delay` at 1 second or more.
+
+## License
 
 [MIT License](LICENSE) — Copyright (c) 2026 neoenox
