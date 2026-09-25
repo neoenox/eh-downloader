@@ -30,9 +30,6 @@ jobs:
       - name: Integration test (fetch-mocked)
         run: node test_eh_download.mjs
 
-      - name: TEMPORARY - force failure to verify Slack notification
-        run: exit 1
-
   notify:
     name: Notify Slack on failure
     needs: test
