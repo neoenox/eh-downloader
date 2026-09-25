@@ -1,5 +1,9 @@
 # E-Hentai ダウンロード & 画像変換ツール
 
+[![CI](https://github.com/neoenox/eh-downloader/actions/workflows/ci.yml/badge.svg)](https://github.com/neoenox/eh-downloader/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/neoenox/eh-downloader)](https://github.com/neoenox/eh-downloader/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 E-Hentai のギャラリー画像を一括ダウンロードし、WebP → PNG/JPEG に一括変換する Node.js スクリプト集です。
 
 ## 必要環境
@@ -145,3 +149,7 @@ node convert_images.mjs "3553112_badpeach - ..." --format jpeg --del
 ## 免責
 
 利用は各サイトの利用規約と各国の法律を遵守のうえ、自己責任でお願いします。過度なアクセスは IP 制限の対象になるため `--parallel` は 2〜3、`--delay` は 1 秒以上を推奨します。
+
+## ライセンス
+
+[MIT License](LICENSE) — Copyright (c) 2026 neoenox
