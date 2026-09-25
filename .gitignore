@@ -1,8 +1,8 @@
 # Dependencies
 node_modules/
 
-# Downloaded galleries / runtime output
-*/
+# Downloaded galleries (output dirs are named like "3553112_Title ...")
+[0-9]*/
 index.json
 failed_urls.txt
 *.webp
@@ -13,3 +13,4 @@ failed_urls.txt
 # OS / editor
 Thumbs.db
 .DS_Store
+.freebuff/
