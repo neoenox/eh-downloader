@@ -112,6 +112,17 @@ async function acquireSlot() {
 }
 
 const isLimitError = (msg) => /509|帯域/.test(msg);
+// 404/410/401 などは再試行しても意味がない (削除済み・死 URL・認証不足) ので即失敗
+const isPermanentHttpError = (msg) => /^HTTP (401|403|404|410)\b/.test(msg);
+
+function waitOrAbort(e, attempt, maxAttempts, retryLog) {
+  if (attempt >= maxAttempts || isPermanentHttpError(e.message)) {
+    if (isPermanentHttpError(e.message)) log(`  ✖ ${e.message} (再試行不可のエラーのため即失敗)`);
+    throw e;
+  }
+  retryLog(attempt);
+  return sleep(attempt * 3000);
+}
 
 async function fetchText(url, referer) {
   for (let attempt = 1; attempt <= 5; attempt++) {
@@ -138,14 +149,13 @@ async function fetchText(url, referer) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return body;
     } catch (e) {
-      if (attempt === 5) throw e;
       if (isLimitError(e.message)) {
+        if (attempt === 5) throw e;
         const sec = 60 * attempt;
         pauseUntil = Math.max(pauseUntil, Date.now() + sec * 1000);
         log(`⚠ 509検出: 全${parallel}接続を${sec}秒停止 → 自動再試行 (${attempt}/5)`);
       } else {
-        log(`  ! 取得失敗 (${e.message}) - ${attempt * 3}秒後に再試行 (${attempt}/5)...`);
-        await sleep(attempt * 3000);
+        await waitOrAbort(e, attempt, 5, (a) => log(`  ! 取得失敗 (${e.message}) - ${a * 3}秒後に再試行 (${a}/5)...`));
       }
     }
   }
@@ -180,12 +190,15 @@ async function fetchImage(url, referer, dest) {
       }
       throw new Error(type.startsWith("text/html") ? "HTMLが返された(要ログインの可能性)" : `HTTP ${res.status}`);
     } catch (e) {
-      if (attempt === 4) return { ok: false, size: 0, error: e.message };
       if (isLimitError(e.message)) {
+        if (attempt === 4) return { ok: false, size: 0, error: e.message };
         log(`⚠ ${e.message} (${attempt}/4)`); // 待機は acquireSlot が全ワーカー共通で処理
       } else {
-        log(`  ! ${e.message} → ${attempt * 5}秒後に再試行 (${attempt}/4)`);
-        await sleep(attempt * 5000);
+        try {
+          await waitOrAbort(e, attempt, 4, (a) => log(`  ! ${e.message} → ${a * 5}秒後に再試行 (${a}/4)`));
+        } catch (e2) {
+          return { ok: false, size: 0, error: e2.message };
+        }
       }
     }
   }
