@@ -70,7 +70,7 @@ node eh_download.mjs urls.txt ./pics --parallel 3   # 保存先とオプショ�
 | `--parallel N` (`-j N`) | 同時接続数（デフォルト: 2、推奨 2〜3） |
 | `--original` | オリジナル画質を試みる（**要ログイン Cookie**。失敗時は通常画質にフォールバック） |
 | `--cookie "..."` | Cookie 文字列（`exhentai.org` や `--original` に必要）。環境変数 `EH_COOKIE` でも可 |
-| `--list <file>` | URL 一覧ファイルを一括処理 |
+| `--list <file>` | URL 一覧ファイルを一括処理（URL 直指定との併用は不可＝エラーになる） |
 | `--delay 秒` | リクエスト間隔（デフォルト: 1.2） |
 | `--help` | ヘルプ表示 |
 

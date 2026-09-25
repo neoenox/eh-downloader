@@ -19,7 +19,7 @@
  *   https://e-hentai.org/g/1234567/abcdef1234/  # 行末コメントも可
  *
  * オプション:
- *   --list <file>   URL一覧ファイルを一括処理 (1行1URL)
+ *   --list <file>   URL一覧ファイルを一括処理 (1行1URL)。URL直指定との併用は不可
  *   --parallel N    同時接続数 (デフォルト: 2。推奨 2〜3)
  *   --original      オリジナル画質を試みる (要ログインCookie。失敗時は通常画質にフォールバック)
  *   --cookie "..."  Cookie文字列 (exhentai.org や --original にはログインCookieが必要)
@@ -67,9 +67,10 @@ let listFile = listFlagIdx !== -1 ? args[listFlagIdx + 1] : null;
 const urlArgs = positionals.filter((p) => /^https?:\/\//i.test(p));
 const dirArgs = positionals.filter((p) => !/^https?:\/\//i.test(p));
 
-// --list 未指定でも、先頭の非 URL 位置引数が実在ファイルなら一覧ファイルとして扱う
-if (!listFile && dirArgs.length > 0 && fs.existsSync(dirArgs[0]) && fs.statSync(dirArgs[0]).isFile()) {
-  listFile = dirArgs.shift();
+// --list 未指定でも、非 URL 位置引数に実在ファイルがあれば一覧ファイルとして扱う (位置は不問)
+if (!listFile) {
+  const fileIdx = dirArgs.findIndex((d) => { try { return fs.statSync(d).isFile(); } catch { return false; } });
+  if (fileIdx !== -1) listFile = dirArgs.splice(fileIdx, 1)[0];
 }
 // 保存先は残った非 URL 位置引数の先頭 (省略時はカレントディレクトリ)
 const outRoot = dirArgs[0] || ".";
@@ -380,8 +381,14 @@ function readUrlList(file) {
       console.error(`エラー: 一覧ファイルが見つかりません: ${listFile}`);
       process.exit(1);
     }
+    if (urlArgs.length > 0) {
+      console.error(
+        `エラー: --list とギャラリーURLの同時指定はできません (--list を外すか、URL直指定に統一してください)\n` +
+        `  一覧: ${listFile}\n  無視されるURL: ${urlArgs.join(" ")}`
+      );
+      process.exit(1);
+    }
     urls = readUrlList(listFile);
-    if (urlArgs.length > 0) log(`⚠ --list 指定時は引数の URL を無視します (${urlArgs.length} 件)`);
     if (urls.length === 0) {
       console.error("エラー: 一覧ファイルにURLがありません (1行1URLで記述してください)");
       process.exit(1);
