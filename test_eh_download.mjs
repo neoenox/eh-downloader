@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const origCwd = process.cwd();
 const G1 = "https://e-hentai.org/g/111/aaaa1111/";
@@ -112,6 +112,28 @@ const cliTmp = fs.mkdtempSync(path.join(os.tmpdir(), "ehdl-cli-"));
 const runCli = (argv) =>
   spawnSync(process.execPath, [scriptPath, ...argv], { cwd: cliTmp, timeout: 30000, encoding: "utf8" });
 
+// 404 (恒久的エラー) を子プロセスで即失敗させるため、fetch をモックしたラッパー経由で実行する
+const mockWrapper = path.join(cliTmp, "mock_404_runner.mjs");
+fs.writeFileSync(
+  mockWrapper,
+  `// 404 を返す fetch モック → eh_download.mjs を import 実行
+import fs from "node:fs";
+const realFetch = globalThis.fetch;
+let notFoundHits = 0;
+globalThis.fetch = async (url, opts) => {
+  const u = String(url);
+  if (/\\/g\\/333\\//.test(u)) {
+    notFoundHits++;
+    // 呼び出し回数をファイルに記録 (親プロセスから検証する)
+    fs.writeFileSync(${JSON.stringify(path.join(cliTmp, "notfound_hits.txt"))}, String(notFoundHits));
+    return { ok: false, status: 404, text: async () => "not found", headers: { get: (k) => (String(k).toLowerCase() === "content-type" ? "text/html" : null) }, arrayBuffer: async () => new ArrayBuffer(0) };
+  }
+  return realFetch(url, opts);
+};
+await import(${JSON.stringify(pathToFileURL(scriptPath).href)});
+`,
+);
+
 fs.writeFileSync(path.join(cliTmp, "urls.txt"), `${G1}\n`);
 fs.writeFileSync(path.join(cliTmp, "empty.txt"), "# コメントのみの中身空の一覧\n");
 
@@ -131,6 +153,15 @@ cliCheck("後方の一覧ファイルが自動判定される", r2.status === 1 
 // (3) 引数なしは従来どおりヘルプ+exit 1
 const r3 = runCli([]);
 cliCheck("引数なしはヘルプ表示で exit 1", r3.status === 1 && /使い方|オプション/.test(r3.stdout));
+
+// (4) Issue #6: 404 はリトライせず即失敗する (旧実装は 3+6+9+12 秒待機していた)
+const t0 = Date.now();
+const r4 = spawnSync(process.execPath, [mockWrapper, G_BAD], { cwd: cliTmp, timeout: 60000, encoding: "utf8" });
+const elapsed = Date.now() - t0;
+cliCheck("404 ギャラリーが即失敗 (exit 2 / 10秒未満)", r4.status === 2 && elapsed < 10000);
+cliCheck("404 の fetch 呼び出しは1回だけ (リトライなし)", fs.existsSync(path.join(cliTmp, "notfound_hits.txt")) && fs.readFileSync(path.join(cliTmp, "notfound_hits.txt"), "utf8").trim() === "1");
+cliCheck("404 即失敗のメッセージが出る", /再試行不可のエラーのため即失敗/.test(r4.stdout));
+cliCheck("404 が failed_urls.txt に書かれる", fs.existsSync(path.join(cliTmp, "failed_urls.txt")) && fs.readFileSync(path.join(cliTmp, "failed_urls.txt"), "utf8").includes(G_BAD));
 
 fs.rmSync(cliTmp, { recursive: true, force: true });
 let cliFailed = 0;

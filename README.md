@@ -69,7 +69,9 @@ node eh_download.mjs urls.txt ./pics --parallel 3   # 保存先とオプショ�
 
 > 注: URL・一覧ファイル・保存先は自動判別されます。`https://` で始まる引数はすべてギャラリーURL、実在するファイルは一覧ファイル、それ以外は保存先ディレクトリとして扱われます。
 
-1 件失敗（URL 切れ・削除済みなど）しても残りは継続し、最後にサマリを表示します。失敗した URL は `failed_urls.txt` に書き出されるので、`node eh_download.mjs --list failed_urls.txt` でリトライできます。
+1 件失敗（URL 切れ・削除済みなど）しても残りは継続し、最後にサマリを表示します。失敗した URL は `failed_urls.txt` に書き出されるので、`node eh_download.mjs --list failed_urls.txt` でリトライできます。画像の一部だけ失敗したギャラリーもリトライ対象になるため、再実行すると失敗分だけ再取得されます（レジューム）。
+
+> 注: 404 / 410 などの恒久的エラー（死 URL・削除済み）はリトライせず即座に失敗扱いになります。5xx やネットワークエラーのみが自動再試行の対象です。
 
 ### オプション
 
@@ -221,7 +223,9 @@ node eh_download.mjs urls.txt ./pics --parallel 3   # output dir and options als
 
 > Note: URLs, list files and output dirs are auto-detected. Arguments starting with `https://` are gallery URLs, an existing file is treated as a list file, and anything else is the output directory. Combining `--list` with direct URLs is an error.
 
-If one gallery fails (dead link, deleted, etc.), the rest continue and a summary is printed at the end. Failed URLs are written to `failed_urls.txt` so you can retry with `node eh_download.mjs --list failed_urls.txt`.
+If one gallery fails (dead link, deleted, etc.), the rest continue and a summary is printed at the end. Failed URLs — including galleries where only some images failed — are written to `failed_urls.txt`, so re-running with `node eh_download.mjs --list failed_urls.txt` fetches only the missing images (resume).
+
+> Note: Permanent errors such as 404/410 (dead or deleted URLs) fail immediately without retries. Only 5xx and network errors are retried automatically.
 
 ### Options
 
