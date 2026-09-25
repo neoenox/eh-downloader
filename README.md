@@ -18,6 +18,7 @@ E-Hentai のギャラリー画像を一括ダウンロードし、WebP → PNG/J
 | `convert_images.mjs` | WebP → PNG/JPEG 一括変換 |
 | `download.bat` / `convert.bat` | Windows 用ランチャー（ダブルクリックで対話モード） |
 | `urls.txt` | 一括ダウンロード用の URL リスト（自分で作成） |
+| `test_eh_download.mjs` | 結合テスト（`fetch` をモック、`node test_eh_download.mjs` で実行） |
 
 ## Windows での簡単な使い方（bat ファイル）
 
@@ -30,14 +31,17 @@ E-Hentai のギャラリー画像を一括ダウンロードし、WebP → PNG/J
 
 ## 1. ダウンロード: `eh_download.mjs`
 
-### 単一ギャラリー
+### 単一ギャラリー / 複数ギャラリーを直接指定
 
 ```bash
-node eh_download.mjs <ギャラリーURL> [保存先ディレクトリ] [オプション]
+node eh_download.mjs <ギャラリーURL...> [保存先ディレクトリ] [オプション]
 
 # 例
 node eh_download.mjs https://e-hentai.org/g/3553112/f4c015ef04/
 node eh_download.mjs https://e-hentai.org/g/3553112/f4c015ef04/ ./pics --original
+
+# 複数ギャラリーをスペース区切りで連続指定できる (バッチモードになる)
+download.bat https://e-hentai.org/g/3796163/8237f15916/ https://e-hentai.org/g/3796162/639e17ecbf/
 ```
 
 ### 複数ギャラリーを一括処理
@@ -54,6 +58,8 @@ https://e-hentai.org/g/1234567/abcdef1234/  # 行末コメントも可
 node eh_download.mjs --list urls.txt                # --list は省略可
 node eh_download.mjs urls.txt ./pics --parallel 3   # 保存先とオプションも指定可
 ```
+
+> 注: URL・一覧ファイル・保存先は自動判別されます。`https://` で始まる引数はすべてギャラリーURL、実在するファイルは一覧ファイル、それ以外は保存先ディレクトリとして扱われます。
 
 1 件失敗（URL 切れ・削除済みなど）しても残りは継続し、最後にサマリを表示します。失敗した URL は `failed_urls.txt` に書き出されるので、`node eh_download.mjs --list failed_urls.txt` でリトライできます。
 

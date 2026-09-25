@@ -3,11 +3,12 @@
  * E-Hentai gallery downloader (Node.js, 依存ライブラリなし)
  *
  * 使い方:
- *   node eh_download.mjs <ギャラリーURL> [保存先ディレクトリ] [オプション]
+ *   node eh_download.mjs <ギャラリーURL...> [保存先ディレクトリ] [オプション]
  *   node eh_download.mjs --list <URL一覧ファイル> [保存先ディレクトリ] [オプション]
  *
  * 例:
  *   node eh_download.mjs https://e-hentai.org/g/3553112/f4c015ef04/
+ *   node eh_download.mjs https://e-hentai.org/g/AAA/xxx/ https://e-hentai.org/g/BBB/yyy/   # 複数URLを連続指定
  *   node eh_download.mjs https://e-hentai.org/g/3553112/f4c015ef04/ ./pics --original
  *   node eh_download.mjs <URL> --parallel 3 --delay 1
  *   node eh_download.mjs --list urls.txt ./pics --parallel 3
@@ -61,12 +62,17 @@ for (let i = 0; i < args.length; i++) {
 
 const listFlagIdx = args.indexOf("--list");
 let listFile = listFlagIdx !== -1 ? args[listFlagIdx + 1] : null;
-// --list 未指定でも、第1位置引数が実在ファイルなら一覧ファイルとして扱う
-if (!listFile && positionals.length > 0 && !/^https?:\/\//i.test(positionals[0]) && fs.existsSync(positionals[0])) {
-  listFile = positionals[0];
+
+// 位置引数を URL とそれ以外 (保存先など) に分類 → 複数 URL の直接指定が可能に
+const urlArgs = positionals.filter((p) => /^https?:\/\//i.test(p));
+const dirArgs = positionals.filter((p) => !/^https?:\/\//i.test(p));
+
+// --list 未指定でも、先頭の非 URL 位置引数が実在ファイルなら一覧ファイルとして扱う
+if (!listFile && dirArgs.length > 0 && fs.existsSync(dirArgs[0]) && fs.statSync(dirArgs[0]).isFile()) {
+  listFile = dirArgs.shift();
 }
-// 保存先: --list フラグ時は positionals[0]、それ以外 (URL直指定/一覧ファイル直指定) は positionals[1]
-const outRoot = listFlagIdx !== -1 ? (positionals[0] || ".") : (positionals[1] || ".");
+// 保存先は残った非 URL 位置引数の先頭 (省略時はカレントディレクトリ)
+const outRoot = dirArgs[0] || ".";
 
 const wantOriginal = args.includes("--original");
 const cookieArgIdx = args.indexOf("--cookie");
@@ -238,7 +244,7 @@ async function downloadGallery(galleryUrl) {
     const urls = collectImagePages(html, pageUrls[i]);
     let added = 0;
     for (const u of urls) {
-      const n = parseInt((u.match(/-(\d+)$/) || [])[1], 10);
+      const n = parseInt((u.match(/-(\d+)\/?$/) || [])[1], 10);
       if (!seenPages.has(n)) {
         seenPages.add(n);
         imagePageUrls.push(u);
@@ -249,8 +255,8 @@ async function downloadGallery(galleryUrl) {
     if (i < pageUrls.length - 1) await sleep(delayMs);
   }
   imagePageUrls.sort((a, b) => {
-    const na = parseInt((a.match(/-(\d+)$/) || [])[1], 10);
-    const nb = parseInt((b.match(/-(\d+)$/) || [])[1], 10);
+    const na = parseInt((a.match(/-(\d+)\/?$/) || [])[1], 10);
+    const nb = parseInt((b.match(/-(\d+)\/?$/) || [])[1], 10);
     return na - nb;
   });
   const total = imagePageUrls.length;
@@ -272,7 +278,7 @@ async function downloadGallery(galleryUrl) {
   const referer = `https://${host}/`;
   const tasks = [];
   for (const pageUrl of imagePageUrls) {
-    const pageNum = parseInt((pageUrl.match(/-(\d+)$/) || [])[1], 10);
+    const pageNum = parseInt((pageUrl.match(/-(\d+)\/?$/) || [])[1], 10);
     const rec = index[pageNum];
     if (rec && rec.file && fs.existsSync(path.join(outDir, rec.file)) && fs.statSync(path.join(outDir, rec.file)).size > 0) {
       skipped++;
@@ -375,17 +381,19 @@ function readUrlList(file) {
       process.exit(1);
     }
     urls = readUrlList(listFile);
+    if (urlArgs.length > 0) log(`⚠ --list 指定時は引数の URL を無視します (${urlArgs.length} 件)`);
     if (urls.length === 0) {
       console.error("エラー: 一覧ファイルにURLがありません (1行1URLで記述してください)");
       process.exit(1);
     }
     log(`▶ 一覧ファイル: ${listFile} (${urls.length} ギャラリー)`);
   } else {
-    if (!positionals[0]) {
+    if (urlArgs.length === 0) {
       console.error("エラー: ギャラリーURLを指定してください (--help で使い方)");
       process.exit(1);
     }
-    urls = [positionals[0]];
+    urls = urlArgs;
+    if (urls.length > 1) log(`▶ ${urls.length} ギャラリーを連続ダウンロードします`);
   }
   for (const u of urls) {
     try { new URL(u); } catch { console.error(`エラー: URLが不正です: ${u}`); process.exit(1); }
