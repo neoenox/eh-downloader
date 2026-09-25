@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Downloaded galleries / runtime output
+*/
+index.json
+failed_urls.txt
+*.webp
+*.png
+*.jpeg
+*.jpg
+
+# OS / editor
+Thumbs.db
+.DS_Store
