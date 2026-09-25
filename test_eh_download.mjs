@@ -3,6 +3,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const origCwd = process.cwd();
 const G1 = "https://e-hentai.org/g/111/aaaa1111/";
@@ -103,4 +105,41 @@ if (failedCount > 0) {
   process.exit(1);
 }
 process.exitCode = 0; // import したスクリプトが設定した exitCode (2) をリセット
-console.log("\nすべてのチェックに合格しました");
+
+// --- CLI レベルの検証 (子プロセス・オフライン: process.exit() の挙動も含めて確認) ---
+const scriptPath = fileURLToPath(new URL("./eh_download.mjs", import.meta.url));
+const cliTmp = fs.mkdtempSync(path.join(os.tmpdir(), "ehdl-cli-"));
+const runCli = (argv) =>
+  spawnSync(process.execPath, [scriptPath, ...argv], { cwd: cliTmp, timeout: 30000, encoding: "utf8" });
+
+fs.writeFileSync(path.join(cliTmp, "urls.txt"), `${G1}\n`);
+fs.writeFileSync(path.join(cliTmp, "empty.txt"), "# コメントのみの中身空の一覧\n");
+
+const cliChecks = [];
+const cliCheck = (name, cond) => cliChecks.push({ name, cond });
+
+// (1) --list と URL 直指定の併用はエラーで即終了する (黙って URL を無視しない)
+const r1 = runCli(["--list", "urls.txt", G1]);
+cliCheck("--list+URL 併用が exit 1", r1.status === 1);
+cliCheck("併用エラーのメッセージが表示される", /同時指定はできません/.test(r1.stderr) && r1.stderr.includes(G1));
+
+// (2) 一覧ファイルの自動判定は位置不問: 第2引数の実在ファイルが一覧として拾われる
+//     (旧実装は先頭非URL引数のみ判定したため「ギャラリーURLを指定してください」になっていた)
+const r2 = runCli(["./not_exist_dir", "empty.txt"]);
+cliCheck("後方の一覧ファイルが自動判定される", r2.status === 1 && /一覧ファイルにURLがありません/.test(r2.stderr));
+
+// (3) 引数なしは従来どおりヘルプ+exit 1
+const r3 = runCli([]);
+cliCheck("引数なしはヘルプ表示で exit 1", r3.status === 1 && /使い方|オプション/.test(r3.stdout));
+
+fs.rmSync(cliTmp, { recursive: true, force: true });
+let cliFailed = 0;
+for (const c of cliChecks) {
+  origLog(`${c.cond ? "PASS" : "FAIL"}: ${c.name}`);
+  if (!c.cond) cliFailed++;
+}
+if (cliFailed > 0 || failedCount > 0) {
+  console.error(`\nチェック失敗: in-process ${failedCount} 件 / CLI ${cliFailed} 件`);
+  process.exit(1);
+}
+console.log("\nすべてのチェックに合格しました (in-process + CLI)");
