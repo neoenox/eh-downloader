@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      force_failure:
+        description: "Force the test job to fail so Slack notification delivery can be verified"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   test:
@@ -30,11 +37,15 @@ jobs:
       - name: Integration test (fetch-mocked)
         run: node test_eh_download.mjs
 
+      - name: Force failure for Slack notification test
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.force_failure }}
+        run: exit 1
+
   notify:
     name: Notify Slack on failure
     needs: test
-    # 通知の重複を避けるため PR では発火させず main への push のみ対象
-    if: ${{ always() && needs.test.result == 'failure' && github.event_name == 'push' }}
+    # PR では通知せず、main push または明示的な手動実行だけを対象にする
+    if: ${{ always() && needs.test.result == 'failure' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     steps:
       - name: Send Slack notification
@@ -52,7 +63,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": ":rotating_light: *CI が失敗しました* (`${{ github.repository }}`)\n*Branch:* `${{ github.ref_name }}`\n*Commit:* `${{ github.sha }}`\n*Author:* `${{ github.actor }}`\n*Message:* ${{ github.event.head_commit.message }}"
+                    "text": ":rotating_light: *CI が失敗しました* (`${{ github.repository }}`)\n*Branch:* `${{ github.ref_name }}`\n*Commit:* `${{ github.sha }}`\n*Author:* `${{ github.actor }}`\n*Message:* ${{ github.event.head_commit.message || 'manual workflow_dispatch' }}"
                   }
                 },
                 {
