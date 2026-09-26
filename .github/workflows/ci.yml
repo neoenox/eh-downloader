@@ -33,9 +33,16 @@ jobs:
           node --check eh_download.mjs
           node --check convert_images.mjs
           node --check test_eh_download.mjs
+          node --check test_convert_images.mjs
+
+      - name: Install conversion test dependency
+        run: npm install --no-save sharp
 
       - name: Integration test (fetch-mocked)
         run: node test_eh_download.mjs
+
+      - name: Image conversion integration test
+        run: node test_convert_images.mjs
 
       - name: Force failure for Slack notification test
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.force_failure }}
