@@ -82,6 +82,9 @@ node eh_download.mjs urls.txt ./pics --parallel 3   # 保存先とオプショ�
 | `--cookie "..."` | Cookie 文字列（`exhentai.org` や `--original` に必要）。環境変数 `EH_COOKIE` でも可 |
 | `--list <file>` | URL 一覧ファイルを一括処理（URL 直指定との併用は不可＝エラーになる） |
 | `--delay 秒` | リクエスト間隔（デフォルト: 1.2） |
+| `--convert F` | ダウンロード完了後に `png` / `jpeg` へ自動変換 |
+| `--quality N` | `--convert jpeg` の品質 1–100（デフォルト: 90） |
+| `--del` | `--convert` 成功後に元の WebP を削除 |
 | `--help` | ヘルプ表示 |
 
 ### 主な動作
@@ -134,15 +137,18 @@ node convert_images.mjs ./pics --del                         # 変換成功後�
 ## よくある使い方（ワークフロー例）
 
 ```bash
-# 1. URL リストを用意して一括ダウンロード（同時3接続）
+# ダウンロード → JPEG変換を1コマンドで実行
+node eh_download.mjs urls.txt --parallel 3 --convert jpeg --quality 90
+
+# 変換成功後に元WebPも削除
+node eh_download.mjs urls.txt --parallel 3 --convert jpeg --quality 90 --del
+
+# 従来どおり2段階でも実行可能
 node eh_download.mjs urls.txt --parallel 3
-
-# 2. ダウンロードしたフォルダを JPEG に変換
 node convert_images.mjs "3553112_badpeach - Asta (Honkai Star Rail) AI Generated" --format jpeg --quality 90
-
-# 3. 容量が許せば元の WebP を削除
-node convert_images.mjs "3553112_badpeach - ..." --format jpeg --del
 ```
+
+> `--del` は `--convert` と組み合わせた場合だけ有効です。変換に成功した WebP だけを削除します。
 
 ## 終了コード
 
@@ -236,6 +242,9 @@ If one gallery fails (dead link, deleted, etc.), the rest continue and a summary
 | `--cookie "..."` | Cookie string (required for `exhentai.org` and `--original`). Also via the `EH_COOKIE` env var |
 | `--list <file>` | Batch process a URL list file (cannot be combined with direct URLs — exits with an error) |
 | `--delay SEC` | Delay between requests (default: 1.2) |
+| `--convert F` | Automatically convert each completed gallery to `png` / `jpeg` |
+| `--quality N` | JPEG quality for `--convert jpeg`, 1–100 (default: 90) |
+| `--del` | Delete source WebP files after successful `--convert` |
 | `--help` | Show help |
 
 ### Key behaviors
@@ -288,15 +297,18 @@ node convert_images.mjs ./pics --del                          # delete source We
 ## Typical workflow
 
 ```bash
-# 1. Prepare a URL list and batch-download (3 concurrent connections)
+# Download and convert to JPEG in one command
+node eh_download.mjs urls.txt --parallel 3 --convert jpeg --quality 90
+
+# Delete source WebP only after successful conversion
+node eh_download.mjs urls.txt --parallel 3 --convert jpeg --quality 90 --del
+
+# The original two-step workflow is still supported
 node eh_download.mjs urls.txt --parallel 3
-
-# 2. Convert the downloaded folder to JPEG
 node convert_images.mjs "3553112_gallery title" --format jpeg --quality 90
-
-# 3. Optionally delete the original WebP
-node convert_images.mjs "3553112_gallery title" --format jpeg --del
 ```
+
+> `--del` is accepted only together with `--convert`; only successfully converted WebP files are deleted.
 
 ## Exit codes
 
