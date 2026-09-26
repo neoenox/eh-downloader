@@ -14,9 +14,9 @@ const G_BAD = "https://e-hentai.org/g/333/cccc3333/";
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ehdl-test-"));
 process.chdir(tmp); // 保存先 "." が tmp になる
 
-const galleryHtml = (g) =>
-  `<!doctype html><html><head><title>Test Gallery ${g} - E-Hentai</title></head>
-<body><h1 id="gn">Test Gallery ${g}</h1>
+const galleryHtml = (g, title = `Test Gallery ${g}`) =>
+  `<!doctype html><html><head><title>${title} - E-Hentai</title></head>
+<body><h1 id="gn">${title}</h1>
 <a href="${g}s/0123456789/1-1/"><img src="x.jpg"></a>
 <a href="${g}s/0123456789/1-2/"><img src="x.jpg"></a>
 </body></html>`;
@@ -36,10 +36,10 @@ globalThis.fetch = async (url) => {
     return { ok: true, status: 200, text: async () => imgPageHtml(n), headers: fakeHeaders("text/html"), arrayBuffer: async () => new ArrayBuffer(0) };
   }
   if (/\/g\/111\//.test(u)) {
-    return { ok: true, status: 200, text: async () => galleryHtml(G1), headers: fakeHeaders("text/html"), arrayBuffer: async () => new ArrayBuffer(0) };
+    return { ok: true, status: 200, text: async () => galleryHtml(G1, "CON"), headers: fakeHeaders("text/html"), arrayBuffer: async () => new ArrayBuffer(0) };
   }
   if (/\/g\/222\//.test(u)) {
-    return { ok: true, status: 200, text: async () => galleryHtml(G2), headers: fakeHeaders("text/html"), arrayBuffer: async () => new ArrayBuffer(0) };
+    return { ok: true, status: 200, text: async () => galleryHtml(G2, "....   "), headers: fakeHeaders("text/html"), arrayBuffer: async () => new ArrayBuffer(0) };
   }
   if (/\/g\/333\//.test(u)) {
     return { ok: true, status: 404, text: async () => "not found", headers: fakeHeaders("text/html"), arrayBuffer: async () => new ArrayBuffer(0) };
@@ -84,9 +84,11 @@ const checks = [];
 const check = (name, cond) => checks.push({ name, cond });
 
 process.chdir(origCwd); // Windows ではカレントディレクトリを削除できないため先に戻る
-const g1Dir = fs.readdirSync(tmp).find((d) => d.startsWith("111_"));
-const g2Dir = fs.readdirSync(tmp).find((d) => d.startsWith("222_"));
+const g1Dir = fs.readdirSync(tmp).find((d) => d === "111__CON");
+const g2Dir = fs.readdirSync(tmp).find((d) => d === "gallery_222");
 check("import がエラーなく完了", !/\[import エラー\]|\[タイムアウト\]/.test(output));
+check("Windows予約語タイトルを安全な名前へ変換", g1Dir === "111__CON");
+check("空になるタイトルは gallery_<gid> へフォールバック", g2Dir === "gallery_222");
 check("G1 フォルダが作成され2枚ダウンロード", !!g1Dir && fs.readdirSync(path.join(tmp, g1Dir)).filter((f) => f.endsWith(".webp")).length === 2);
 check("G2 フォルダが作成され2枚ダウンロード", !!g2Dir && fs.readdirSync(path.join(tmp, g2Dir)).filter((f) => f.endsWith(".webp")).length === 2);
 check("バッチ結果が3ギャラリーと表示", /バッチ結果 \(3 ギャラリー\)/.test(output));

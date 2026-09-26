@@ -94,6 +94,22 @@ function decodeEntities(s) {
     .trim();
 }
 
+function sanitizeGalleryDirName(title, gid) {
+  let safe = title
+    .replace(/[\u0000-\u001f<>:"/\\|?*]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[. ]+$/g, "")
+    .slice(0, 80)
+    .replace(/[. ]+$/g, "");
+
+  if (!safe) return `gallery_${gid}`;
+  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:[ .]|$)/i.test(safe)) {
+    safe = `_${safe}`;
+  }
+  return `${gid}_${safe}`;
+}
+
 // ---------- 全接続共有のレート制限 ----------
 // lastStart: 直前のリクエスト開始時刻 / pauseUntil: 509検出時に全ワーカーが待つ時刻
 let lastStart = 0;
@@ -241,7 +257,7 @@ async function downloadGallery(galleryUrl) {
   const title = tMatch ? decodeEntities(tMatch[1].replace(/<[^>]*>/g, "")).replace(/ - E-Hentai.*/, "") : "gallery";
   const gidMatch = galleryUrl.match(/\/g\/(\d+)\//);
   const gid = gidMatch ? gidMatch[1] : "gallery";
-  const dirName = `${gid}_${title.replace(/[\\/:*?"<>|.]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "gallery"}`;
+  const dirName = sanitizeGalleryDirName(title, gid);
   const outDir = path.resolve(outRoot, dirName);
   fs.mkdirSync(outDir, { recursive: true });
   log(`▶ 保存先: ${outDir}`);
