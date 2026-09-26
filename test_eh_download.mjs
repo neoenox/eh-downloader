@@ -18,6 +18,17 @@ process.chdir(tmp); // 保存先 "." が tmp になる
 const galleryHtml = (g, title = `Test Gallery ${g}`) =>
   `<!doctype html><html><head><title>${title} - E-Hentai</title></head>
 <body><h1 id="gn">${title}</h1>
+<div id="gdc"><div>Doujinshi</div></div>
+<table id="gdd">
+<tr><td class="gdt1">Posted:</td><td class="gdt2">2026-09-26 12:34</td></tr>
+<tr><td class="gdt1">Rating:</td><td class="gdt2"><span id="rating_label">Average: 4.50</span></td></tr>
+</table>
+<table id="taglist">
+<tr><td class="tc">artist:</td><td><a>alice</a></td></tr>
+<tr><td class="tc">character:</td><td><a>asta</a></td></tr>
+<tr><td class="tc">parody:</td><td><a>honkai star rail</a></td></tr>
+<tr><td class="tc">language:</td><td><a>japanese</a></td></tr>
+</table>
 <a href="${g}s/0123456789/1-1/"><img src="x.jpg"></a>
 <a href="${g}s/0123456789/1-2/"><img src="x.jpg"></a>
 </body></html>`;
@@ -97,6 +108,10 @@ check("G1 フォルダが作成され2枚ダウンロード", !!g1Dir && fs.read
 check("G2 フォルダが作成され2枚ダウンロード", !!g2Dir && fs.readdirSync(path.join(tmp, g2Dir)).filter((f) => f.endsWith(".webp")).length === 2);
 check("G1 が1コマンドでPNG変換される", !!g1Dir && fs.readdirSync(path.join(tmp, g1Dir, "png")).filter((f) => f.endsWith(".png")).length === 2);
 check("G2 が1コマンドでPNG変換される", !!g2Dir && fs.readdirSync(path.join(tmp, g2Dir, "png")).filter((f) => f.endsWith(".png")).length === 2);
+const metadata = JSON.parse(fs.readFileSync(path.join(tmp, g1Dir, "metadata.json"), "utf8"));
+check("metadata.json にカテゴリを保存", metadata.category === "Doujinshi" && metadata.tags.category.includes("Doujinshi"));
+check("metadata.json に投稿日と評価を保存", metadata.uploadedAt === "2026-09-26 12:34" && metadata.rating === "4.50");
+check("metadata.json に主要タグを保存", metadata.tags.artist.includes("alice") && metadata.tags.character.includes("asta") && metadata.tags.series.includes("honkai star rail") && metadata.tags.language.includes("japanese"));
 check("バッチ結果が3ギャラリーと表示", /バッチ結果 \(3 ギャラリー\)/.test(output));
 check("G3(404) が失敗扱い", /✖ https:\/\/e-hentai\.org\/g\/333\//.test(output));
 check("failed_urls.txt に失敗URLが書き出された", fs.existsSync(path.join(tmp, "failed_urls.txt")) && fs.readFileSync(path.join(tmp, "failed_urls.txt"), "utf8").includes(G_BAD));
