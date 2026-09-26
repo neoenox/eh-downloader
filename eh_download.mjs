@@ -24,6 +24,9 @@
  *   --original      オリジナル画質を試みる (要ログインCookie。失敗時は通常画質にフォールバック)
  *   --cookie "..."  Cookie文字列 (exhentai.org や --original にはログインCookieが必要)
  *   --delay 秒      リクエスト間隔 (デフォルト: 1.2)
+ *   --convert F     ダウンロード完了後に png / jpeg へ変換
+ *   --quality N     --convert jpeg の品質 1-100 (デフォルト: 90)
+ *   --del           --convert 成功後に元の WebP を削除
  *   --help          ヘルプ表示
  *
  * 環境変数 EH_COOKIE でもCookieを渡せます。
@@ -38,6 +41,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
@@ -52,7 +57,7 @@ if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
 }
 
 // 値を1つ取るオプションの次の引数は位置引数から除外する
-const VALUE_FLAGS = new Set(["--cookie", "--delay", "--parallel", "-j", "--list"]);
+const VALUE_FLAGS = new Set(["--cookie", "--delay", "--parallel", "-j", "--list", "--convert", "--quality"]);
 const positionals = [];
 for (let i = 0; i < args.length; i++) {
   if (VALUE_FLAGS.has(args[i])) { i++; continue; }
@@ -82,6 +87,21 @@ const delayIdx = args.indexOf("--delay");
 const delayMs = Math.round((delayIdx !== -1 ? parseFloat(args[delayIdx + 1]) : 1.2) * 1000);
 const parallelIdx = Math.max(args.indexOf("--parallel"), args.indexOf("-j"));
 const parallel = Math.max(1, parallelIdx !== -1 ? parseInt(args[parallelIdx + 1], 10) || 2 : 2);
+const convertIdx = args.indexOf("--convert");
+const convertArg = convertIdx !== -1 ? (args[convertIdx + 1] || "").toLowerCase() : null;
+const convertFormat = convertArg === "jpg" ? "jpeg" : convertArg;
+const qualityIdx = args.indexOf("--quality");
+const convertQuality = qualityIdx !== -1 ? Math.min(100, Math.max(1, parseInt(args[qualityIdx + 1], 10) || 90)) : 90;
+const deleteAfterConvert = args.includes("--del");
+
+if (convertFormat && convertFormat !== "png" && convertFormat !== "jpeg") {
+  console.error("エラー: --convert は png または jpeg を指定してください");
+  process.exit(1);
+}
+if (deleteAfterConvert && !convertFormat) {
+  console.error("エラー: --del は --convert png|jpeg と組み合わせて指定してください");
+  process.exit(1);
+}
 
 // ---------- ユーティリティ ----------
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -109,6 +129,31 @@ function sanitizeGalleryDirName(title, gid) {
   }
   return `${gid}_${safe}`;
 }
+
+function convertDownloadedGallery(outDir) {
+  const webpFiles = fs.readdirSync(outDir).filter((name) => /\.webp$/i.test(name));
+  if (webpFiles.length === 0) {
+    log("▶ 変換対象の WebP がないため変換をスキップ");
+    return;
+  }
+
+  const converter = fileURLToPath(new URL("./convert_images.mjs", import.meta.url));
+  const converterArgs = [
+    converter,
+    outDir,
+    "--format", convertFormat,
+    "--quality", String(convertQuality),
+  ];
+  if (deleteAfterConvert) converterArgs.push("--del");
+
+  log(`▶ ダウンロード完了 → ${convertFormat.toUpperCase()} 変換を開始`);
+  const result = spawnSync(process.execPath, converterArgs, { stdio: "inherit" });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`convert_images.mjs が終了コード ${result.status} で失敗しました`);
+  }
+}
+
 
 // ---------- 全接続共有のレート制限 ----------
 // lastStart: 直前のリクエスト開始時刻 / pauseUntil: 509検出時に全ワーカーが待つ時刻
@@ -441,7 +486,17 @@ function readUrlList(file) {
   for (let i = 0; i < urls.length; i++) {
     if (urls.length > 1) log(`\n════════════ [${i + 1}/${urls.length}] ════════════`);
     try {
-      results.push(await downloadGallery(urls[i]));
+      const result = await downloadGallery(urls[i]);
+      if (convertFormat) {
+        try {
+          convertDownloadedGallery(result.outDir);
+          result.converted = convertFormat;
+        } catch (e) {
+          result.error = `変換失敗: ${e.message}`;
+          log(`✖ ${result.error} (次へ進みます)`);
+        }
+      }
+      results.push(result);
     } catch (e) {
       log(`✖ このギャラリーは失敗: ${e.message} (次へ進みます)`);
       results.push({ url: urls[i], error: e.message, done: 0, skipped: 0, failed: 0 });
