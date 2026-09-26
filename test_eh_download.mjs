@@ -5,6 +5,7 @@ import path from "node:path";
 import os from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import sharp from "sharp";
 
 const origCwd = process.cwd();
 const G1 = "https://e-hentai.org/g/111/aaaa1111/";
@@ -26,6 +27,9 @@ const imgPageHtml = (n) =>
 
 // --- fetch モック (ギャラリー / 画像ページ / 画像 / それ以外は404) ---
 const fakeHeaders = (ct) => ({ get: (k) => (k.toLowerCase() === "content-type" ? ct : null) });
+const fakeWebp = await sharp({
+  create: { width: 8, height: 8, channels: 3, background: { r: 32, g: 64, b: 96 } },
+}).webp().toBuffer();
 globalThis.fetch = async (url) => {
   const u = String(url);
   await new Promise((r) => setTimeout(r, 5));
@@ -45,14 +49,14 @@ globalThis.fetch = async (url) => {
     return { ok: true, status: 404, text: async () => "not found", headers: fakeHeaders("text/html"), arrayBuffer: async () => new ArrayBuffer(0) };
   }
   if (/\.webp$/.test(u)) {
-    const body = Buffer.from(`fake-image-${u}`);
+    const body = fakeWebp;
     return { ok: true, status: 200, text: async () => "", headers: fakeHeaders("image/webp"), arrayBuffer: async () => body };
   }
   return { ok: false, status: 404, text: async () => "", headers: fakeHeaders("text/html"), arrayBuffer: async () => new ArrayBuffer(0) };
 };
 
 // --- eh_download.mjs を import 実行 (import 時に即実行されるため argv を差し替え) ---
-process.argv = [process.argv[0], "eh_download.mjs", G1, G2, G_BAD, "--delay", "0"];
+process.argv = [process.argv[0], "eh_download.mjs", G1, G2, G_BAD, "--delay", "0", "--convert", "png", "--quality", "80"];
 
 const doneMarker = path.join(tmp, "__test_done__");
 const logs = [];
@@ -91,6 +95,8 @@ check("Windows予約語タイトルを安全な名前へ変換", g1Dir === "111_
 check("空になるタイトルは gallery_<gid> へフォールバック", g2Dir === "gallery_222");
 check("G1 フォルダが作成され2枚ダウンロード", !!g1Dir && fs.readdirSync(path.join(tmp, g1Dir)).filter((f) => f.endsWith(".webp")).length === 2);
 check("G2 フォルダが作成され2枚ダウンロード", !!g2Dir && fs.readdirSync(path.join(tmp, g2Dir)).filter((f) => f.endsWith(".webp")).length === 2);
+check("G1 が1コマンドでPNG変換される", !!g1Dir && fs.readdirSync(path.join(tmp, g1Dir, "png")).filter((f) => f.endsWith(".png")).length === 2);
+check("G2 が1コマンドでPNG変換される", !!g2Dir && fs.readdirSync(path.join(tmp, g2Dir, "png")).filter((f) => f.endsWith(".png")).length === 2);
 check("バッチ結果が3ギャラリーと表示", /バッチ結果 \(3 ギャラリー\)/.test(output));
 check("G3(404) が失敗扱い", /✖ https:\/\/e-hentai\.org\/g\/333\//.test(output));
 check("failed_urls.txt に失敗URLが書き出された", fs.existsSync(path.join(tmp, "failed_urls.txt")) && fs.readFileSync(path.join(tmp, "failed_urls.txt"), "utf8").includes(G_BAD));
