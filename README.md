@@ -85,6 +85,7 @@ node eh_download.mjs urls.txt ./pics --parallel 3   # 保存先とオプショ�
 | `--convert F` | ダウンロード完了後に `png` / `jpeg` へ自動変換 |
 | `--quality N` | `--convert jpeg` の品質 1–100（デフォルト: 90） |
 | `--del` | `--convert` 成功後に元の WebP を削除 |
+| `--no-metadata` | ギャラリーの `metadata.json` 保存を無効化 |
 | `--help` | ヘルプ表示 |
 
 ### 主な動作
@@ -92,6 +93,7 @@ node eh_download.mjs urls.txt ./pics --parallel 3   # 保存先とオプショ�
 - **レジューム**: 再実行するとダウンロード済みファイルはスキップ。進捗は各フォルダの `index.json` に記録
 - **509 対策**: リクエスト開始間隔を全接続で共有するため、並列時もリクエストレートは逐次版と同じ。509/帯域制限を検出すると全接続が一時停止し、自動で再試行
 - **出力**: `<ギャラリーID>_<タイトル>/01.webp, 02.webp, ...`（連番ファイル名）
+- **メタデータ**: 既定で各フォルダに `metadata.json` を保存（カテゴリ、投稿日、評価、artist/character/series/language/category タグ）。不要なら `--no-metadata`
 
 ### 注意
 
@@ -245,6 +247,7 @@ If one gallery fails (dead link, deleted, etc.), the rest continue and a summary
 | `--convert F` | Automatically convert each completed gallery to `png` / `jpeg` |
 | `--quality N` | JPEG quality for `--convert jpeg`, 1–100 (default: 90) |
 | `--del` | Delete source WebP files after successful `--convert` |
+| `--no-metadata` | Disable writing gallery `metadata.json` |
 | `--help` | Show help |
 
 ### Key behaviors
@@ -252,6 +255,7 @@ If one gallery fails (dead link, deleted, etc.), the rest continue and a summary
 - **Resume**: re-running skips already-downloaded files; progress is tracked in each folder's `index.json`
 - **509 handling**: the request interval is shared across all connections, so the request rate stays the same as sequential. When a 509/bandwidth limit is detected, all connections pause and retry automatically
 - **Output**: `<gallery ID>_<title>/01.webp, 02.webp, ...` (sequential file names)
+- **Metadata**: writes `metadata.json` by default with category, posted date, rating, and artist/character/series/language/category tags; disable with `--no-metadata`
 
 ### Notes
 
