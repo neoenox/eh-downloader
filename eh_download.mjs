@@ -27,6 +27,7 @@
  *   --convert F     ダウンロード完了後に png / jpeg へ変換
  *   --quality N     --convert jpeg の品質 1-100 (デフォルト: 90)
  *   --del           --convert 成功後に元の WebP を削除
+ *   --no-metadata   metadata.json を保存しない
  *   --help          ヘルプ表示
  *
  * 環境変数 EH_COOKIE でもCookieを渡せます。
@@ -93,6 +94,7 @@ const convertFormat = convertArg === "jpg" ? "jpeg" : convertArg;
 const qualityIdx = args.indexOf("--quality");
 const convertQuality = qualityIdx !== -1 ? Math.min(100, Math.max(1, parseInt(args[qualityIdx + 1], 10) || 90)) : 90;
 const deleteAfterConvert = args.includes("--del");
+const saveMetadata = !args.includes("--no-metadata");
 
 if (convertFormat && convertFormat !== "png" && convertFormat !== "jpeg") {
   console.error("エラー: --convert は png または jpeg を指定してください");
@@ -154,6 +156,57 @@ function convertDownloadedGallery(outDir) {
   }
 }
 
+
+function htmlText(value) {
+  return decodeEntities(value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim());
+}
+
+function extractGalleryMetadata(html, galleryUrl, gid, title) {
+  const categoryMatch = html.match(/id=["']gdc["'][^>]*>[\s\S]*?<div[^>]*>([\s\S]*?)<\/div>/i);
+  const category = categoryMatch ? htmlText(categoryMatch[1]) : null;
+
+  const field = (label) => {
+    const re = new RegExp(
+      `<td[^>]*>\\s*${label}:?\\s*<\\/td>\\s*<td[^>]*>([\\s\\S]*?)<\\/td>`,
+      "i",
+    );
+    const match = html.match(re);
+    return match ? htmlText(match[1]) : null;
+  };
+
+  const ratingLabel = html.match(/id=["']rating_label["'][^>]*>([\s\S]*?)<\//i);
+  const posted = field("Posted");
+  const rating = ratingLabel ? htmlText(ratingLabel[1]).replace(/^Average:\s*/i, "") : field("Rating");
+
+  const tags = { artist: [], character: [], series: [], language: [], category: [] };
+  const rowRe = /<tr[^>]*>\s*<td[^>]*class=["'][^"']*\btc\b[^"']*["'][^>]*>([\s\S]*?)<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>\s*<\/tr>/gi;
+  let row;
+  while ((row = rowRe.exec(html)) !== null) {
+    const namespace = htmlText(row[1]).replace(/:$/, "").toLowerCase();
+    const mapped = namespace === "parody" ? "series" : namespace;
+    if (!(mapped in tags)) continue;
+
+    const values = [];
+    const linkRe = /<a[^>]*>([\s\S]*?)<\/a>/gi;
+    let link;
+    while ((link = linkRe.exec(row[2])) !== null) {
+      const value = htmlText(link[1]);
+      if (value && !values.includes(value)) values.push(value);
+    }
+    tags[mapped].push(...values.filter((value) => !tags[mapped].includes(value)));
+  }
+  if (category && !tags.category.includes(category)) tags.category.push(category);
+
+  return {
+    galleryUrl,
+    galleryId: gid,
+    title,
+    category,
+    uploadedAt: posted,
+    rating,
+    tags,
+  };
+}
 
 // ---------- 全接続共有のレート制限 ----------
 // lastStart: 直前のリクエスト開始時刻 / pauseUntil: 509検出時に全ワーカーが待つ時刻
@@ -306,6 +359,11 @@ async function downloadGallery(galleryUrl) {
   const outDir = path.resolve(outRoot, dirName);
   fs.mkdirSync(outDir, { recursive: true });
   log(`▶ 保存先: ${outDir}`);
+
+  if (saveMetadata) {
+    const metadata = extractGalleryMetadata(firstHtml, galleryUrl, gid, title);
+    fs.writeFileSync(path.join(outDir, "metadata.json"), JSON.stringify(metadata, null, 2) + "\n");
+  }
 
   // 2) 全ページから画像ページURLを収集 (一覧は逐次で取得)
   const pageNums = collectPaginationPages(firstHtml);
