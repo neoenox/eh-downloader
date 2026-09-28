@@ -6,7 +6,7 @@
 [![Node.js](https://img.shields.io/badge/node-%E2%89%A518-339933.svg?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Issues](https://img.shields.io/github/issues/neoenox/eh-downloader?style=flat-square&label=issues)](https://github.com/neoenox/eh-downloader/issues)
 
-**日本語** | [English](#english) | [「送る」メニュー登録ガイド](docs/send-to.md) | [Social preview 設定ガイド](docs/social-preview.md) | [GIF デモ構成案](docs/gif-demo.md)
+**日本語** | [English](#english) | [「送る」メニュー登録ガイド](docs/send-to.md) | [Social preview 設定ガイド](docs/social-preview.md) | [GIF デモ構成案](docs/gif-demo.md) | [📖 ドキュメント一覧](docs/index.md)
 
 E-Hentai のギャラリー画像を一括ダウンロードし、WebP → PNG/JPEG に一括変換し、ブラウザで閲覧できる Node.js スクリプト集です。
 
@@ -37,7 +37,7 @@ node run_all.mjs https://e-hentai.org/g/3553112/f4c015ef04/
 # Windows なら run_all.bat をダブルクリックでも OK
 ```
 
-目的別ガイド: [送るメニュー](docs/send-to.md) / [Social preview](docs/social-preview.md) / [GIF デモ](docs/gif-demo.md) / [自前ビルド](#自分でビルド)
+目的別ガイド: [📖 ドキュメント一覧](docs/index.md) — [送るメニュー](docs/send-to.md) / [Social preview](docs/social-preview.md) / [GIF デモ](docs/gif-demo.md) / [自前ビルド](#自分でビルド)
 
 ## 必要環境
 
@@ -418,7 +418,7 @@ node convert_images.mjs "3553112_badpeach - Asta (Honkai Star Rail) AI Generated
 [![Release](https://img.shields.io/github/v/release/neoenox/eh-downloader?style=flat-square&logo=github&label=release)](https://github.com/neoenox/eh-downloader/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg?style=flat-square)](LICENSE)
 
-**English** | [日本語](#e-hentai-ダウンロード-画像変換ツール) | [Send-to menu guide](docs/send-to.md) | [Social preview guide](docs/social-preview.md) | [GIF demo proposal](docs/gif-demo.md)
+**English** | [日本語](#e-hentai-ダウンロード-画像変換ツール) | [Send-to menu guide](docs/send-to.md) | [Social preview guide](docs/social-preview.md) | [GIF demo proposal](docs/gif-demo.md) | [📖 Documentation index](docs/index.md)
 
 A set of Node.js scripts to batch-download E-Hentai galleries, convert the downloaded WebP images to PNG/JPEG, and view them in your browser.
 
@@ -447,7 +447,7 @@ node run_all.mjs https://e-hentai.org/g/3553112/f4c015ef04/
 # or double-click run_all.bat on Windows
 ```
 
-Guides: [Send-to menu](docs/send-to.md) / [Social preview](docs/social-preview.md) / [GIF demo](docs/gif-demo.md) / [Build it yourself](#build-it-yourself)
+Guides: [📖 Documentation index](docs/index.md) — [Send-to menu](docs/send-to.md) / [Social preview](docs/social-preview.md) / [GIF demo](docs/gif-demo.md) / [Build it yourself](#build-it-yourself)
 
 ## Requirements
 
