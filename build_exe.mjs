@@ -61,6 +61,10 @@ if (!hasFlag("--no-sharp") && !fs.existsSync(path.join(rootDir, "node_modules", 
 const VERSION = getOpt(["--version"]) || JSON.parse(fs.readFileSync(path.join(rootDir, "package.json"), "utf8")).version;
 console.log(`  バージョン: ${VERSION}`);
 
+// Windows 向けアイコン & バージョンリソース (rcedit で埋め込む)
+const ICON_FILE = path.join(rootDir, "assets", ENTRY_KIND === "runall" ? "icon-runall.ico" : "icon-viewer.ico");
+const HAS_ICON = process.platform === "win32" && fs.existsSync(ICON_FILE);
+
 const esbuild = await import("esbuild");
 const major = parseInt(process.versions.node.split(".")[0], 10);
 if (major < 20) {
@@ -200,6 +204,39 @@ const EXE_SUFFIX = process.platform === "win32" ? ".exe" : "";
 const outExe = path.join(OUT_DIR, `${NAME}${EXE_SUFFIX}`);
 fs.copyFileSync(process.execPath, outExe);
 if (process.platform !== "win32") fs.chmodSync(outExe, 0o755);
+
+// Windows のみ: rcedit でアイコンとバージョンリソースを埋め込む。
+// SEA blob 注入の**前**に実行する (rcedit は PE のリソースセクションを書き換えるため、
+// 注入後に実行すると署名や既存リソースと干渉する恐れがある。順序は 公式 SEA ドキュメント準拠)。
+if (process.platform === "win32") {
+  let rcedit = null;
+  try { rcedit = require("rcedit").rcedit ?? require("rcedit"); } catch { rcedit = null; }
+  if (!rcedit) {
+    console.error("[ERROR] rcedit がありません。 npm install -D rcedit を実行してください");
+    process.exit(1);
+  }
+  const ver = String(VERSION).replace(/^v/, "");
+  const APP_NAME = ENTRY_KIND === "runall" ? "E-Hentai All-in-One (DL / Convert / View)" : "E-Hentai Image Viewer";
+  const opts = {
+    "version-string": {
+      FileDescription: APP_NAME,
+      ProductName: "eh-downloader",
+      FileVersion: ver,
+      ProductVersion: ver,
+      LegalCopyright: "MIT License - Copyright (c) 2026 neoenox",
+    },
+    "file-version": ver,
+    "product-version": ver,
+  };
+  if (fs.existsSync(ICON_FILE)) opts.icon = ICON_FILE;
+  try {
+    await rcedit(outExe, opts);
+    console.log(`  リソース埋め込み: アイコン${opts.icon ? "あり" : "なし (assets/*.ico が未生成)"} / バージョン ${ver}`);
+  } catch (e) {
+    console.error("[ERROR] rcedit によるリソース埋め込みに失敗しました:\n" + (e && e.message || e));
+    process.exit(1);
+  }
+}
 
 const postject = require.resolve("postject/dist/cli.js");
 const inject = spawnSync(

@@ -274,6 +274,7 @@ node build_exe.mjs --runall # → dist/eh-runall.exe (run_all 統合版)
 - 生成される exe はダブルクリックで起動でき、**ターゲット PC に Node.js は不要**
 - sharp は初回起動時に `%TEMP%\eh-viewer-assets-<hash>\` へ展開され、以降は再利用される（アンインストールは Temp のフォルダ削除のみ。72時間未使用の古い展開先は自動掃除）
 - 使い方・オプションは `node image_viewer.mjs` と同一（`eh-viewer.exe <フォルダ> --recursive` など）
+- **Windows 向けにはアイコンとバージョンリソースを埋め込み**（rcedit。エクスプローラーでアイコンが表示され、ファイルのプロパティに製品名・バージョンが載る）。アイコンは `node assets/make_icons.mjs` で `assets/icon-*.ico` を再生成できる
 
 > 注: 現在の Node.js の `node.exe` をベースにするため、ビルド OS と同じ OS/アーキ向けの exe になります（Windows でビルド → Windows 向け）。3 OS 分は GitHub Actions のリリースワークフロー（`.github/workflows/release.yml`）が自動ビルドします。
 
@@ -640,6 +641,7 @@ node build_exe.mjs --runall # -> dist/eh-runall.exe (run_all all-in-one)
 - The produced exe starts by double-click and **needs no Node.js on the target PC**
 - sharp is extracted to `%TEMP%\eh-viewer-assets-<hash>\` on first launch and reused afterwards (to uninstall, just delete that Temp folder; stale extraction dirs unused for 72 h are cleaned automatically)
 - Usage is identical to `node image_viewer.mjs` (`eh-viewer.exe <folder> --recursive`, etc.)
+- **Windows builds embed an icon and version resource** (via rcedit: the icon shows in Explorer and the file Properties lists product name & version). Regenerate the icons with `node assets/make_icons.mjs`
 
 > Note: the exe targets the same OS/arch as the build machine (build on Windows → Windows exe), because it wraps the current node.exe. The GitHub Actions release workflow (`.github/workflows/release.yml`) builds all three OSes automatically.
 
