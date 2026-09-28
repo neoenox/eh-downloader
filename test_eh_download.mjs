@@ -76,8 +76,9 @@ console.log = (...a) => { logs.push(a.join(" ")); };
 let runDlResult = null;
 try {
   // ライブラリ化済み: runDownload(argv) を明示呼び出しする (直接 import は副作用なし)
+  // --convert で DL 後変換も検証する (process.argv は上で --convert png を含む形に差し替え済み)
   const { runDownload } = await import("./eh_download.mjs");
-  runDlResult = await runDownload([G1, G2, G_BAD, "--delay", "0"]);
+  runDlResult = await runDownload([G1, G2, G_BAD, "--delay", "0", "--convert", "png", "--quality", "80"]);
 } catch (e) {
   logs.push(`[import エラー] ${e.stack || e.message}`);
 }
