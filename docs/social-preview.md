@@ -5,6 +5,10 @@
 変更できます。デフォルトの自動生成画像 (リポジトリ名だけの素朴なもの) から、
 オリジナルの画像に差し替えられます。
 
+**訴求ポイント (クイックスタートと同じメッセージ):** このリポジトリの一番の強みは
+「**単一 exe をダウンロードして改ざん検証するだけ**で DL→変換→閲覧が完結し、
+Node.js のインストールが不要」なことです。Social preview でもこの一点を前面に出します。
+
 ## 設定手順 (ブラウザ操作のみ・コード不要)
 
 1. リポジトリのトップページを開く: <https://github.com/neoenox/eh-downloader>
@@ -41,14 +45,38 @@
 - [ shields.io バッジを組み合わせたバナー](https://shields.io/badges/static-badge) を
   画像エディタ (Figma / Canva / PowerPoint でも可) に並べて書き出す
 
-### パターン C: オリジナル画像を用意する
+### パターン C: オリジナル画像を用意する (おすすめ)
 
-`1280×640` のキャンバスに以下を配置するのがお勧めです:
+`1280×640` のキャンバスに以下を配置するのがお勧めです。
+使う素材はすべてリポジトリ内にあります (`assets/icon-runall.ico` は
+`node assets/make_icons.mjs` で 256px まで再生成可能):
 
-- 中央: タイトル `E-Hentai Downloader` (大きめの太字)
-- 下段: `WebP → PNG/JPEG 一括変換 / Node.js 18+`
-- アクセント: CI バッジや MIT バッジを模した長方形を左下に置くと「CI で管理されている」
-  印象が出る
+- **中央: タイトル** `E-Hentai Downloader` (大きめの太字)
+- **タイトル直下のコピー**: `Single exe — no Node.js required` /
+  日本語なら「**単一 exe で完結・Node.js 不要**」
+- **サブコピー (下段)**: `Download → Verify (SHA-256) → Convert → View` /
+  「DL → 検証 → 変換 → 閲覧を 1 コマンドで」
+- **左側 (または中央左) にアイコン**: `assets/icon-runall.ico` の青い DL バッジ付き
+  フォトアイコンを 256px 相当で配置
+- **アクセント**: 「3 OS (Windows / Linux / macOS)」「SHA-256 検証ツール同梱」
+  「MIT」を小さなバッジ風の長方形で下段に並べると情報量と信頼感が増す
+- **配色**: アイコンに合わせて濃い青 (`#1e88e5`) × チャコール (`#263238`) を基調に。
+
+> レイアウト案 (テキストベース):
+>
+> ```
+> ┌──────────────────────────────────────────────────────┐
+> │                                                      │
+> │   [icon]   E-Hentai Downloader                       │
+> │            単一 exe で完結・Node.js 不要              │
+> │            DL → 検証(SHA-256) → 変換 → 閲覧           │
+> │                                                      │
+> │   [Windows] [Linux] [macOS] [MIT]                    │
+> └──────────────────────────────────────────────────────┘
+> ```
+
+画像エディタには Figma / Canva / PowerPoint が使えます。PowerPoint なら
+スライドを 13.33in × 6.67in (1280×640 相当) にして PNG 書き出しするだけで OK です。
 
 ## 設定の確認方法
 
@@ -69,7 +97,12 @@ Social preview のアップロードはリポジトリ外の設定なので必�
 docs/
   social-preview.png   ← 1280x640 の OGP 素材
   social-preview.md    ← このファイル
+assets/
+  icon-runall.ico      ← アイコン素材 (make_icons.mjs で生成)
 ```
+
+> 素材 PNG をリポジトリに置く場合、生成スクリプト (`node` + `sharp` または
+> `ffmpeg`) も一緒に置いておくと、次回の差し替えが楽になります。
 
 ---
 
@@ -78,6 +111,10 @@ docs/
 The thumbnail shown when your repository URL is shared on X (Twitter),
 Discord, Slack, LINE, etc. can be changed in GitHub's **Social preview**
 setting — no code required.
+
+**Key selling point (same message as the quick start):** the headline strength
+of this repository is that a **single exe download + tamper check** gets you
+download → convert → view with **no Node.js install**. Lead with that.
 
 ## Steps
 
@@ -97,6 +134,43 @@ setting — no code required.
 | Format | PNG / JPG / GIF |
 | File size | under 1 MB |
 | Text | Large and centered; keep 10% margins from edges (may be cropped) |
+
+## Creating the image (3 patterns)
+
+### Pattern A: keep GitHub's auto-generated image (no change needed)
+
+### Pattern B: template services (5 min, free)
+
+- [Socialify](https://socialify.git.fi/neoenox/eh-downloader/image?description=1&language=1&logo=1&name=1&owner=1&pattern=Diagonal%20Stripes&theme=Light)
+  auto-generates an OGP image from the repo; download and upload it
+- Compose [shields.io badges](https://shields.io/badges/static-badge) into a
+  banner in an image editor (Figma / Canva / PowerPoint all work)
+
+### Pattern C: original image (recommended)
+
+On a `1280×640` canvas, place:
+
+- **Center title**: `E-Hentai Downloader` (large, bold)
+- **Tagline**: `Single exe — no Node.js required`
+- **Sub-copy**: `Download → Verify (SHA-256) → Convert → View`
+- **Icon**: the blue download-badge photo icon from `assets/icon-runall.ico`
+  at ~256px (regenerate with `node assets/make_icons.mjs` if needed)
+- **Accent badges**: `Windows / Linux / macOS`, `SHA-256 checksums included`, `MIT`
+- **Palette**: dark blue (`#1e88e5`) × charcoal (`#263238`) to match the icon
+
+> Layout sketch:
+>
+> ```
+> ┌──────────────────────────────────────────────────────┐
+> │   [icon]   E-Hentai Downloader                       │
+> │            Single exe — no Node.js required          │
+> │            Download → Verify (SHA-256) → View        │
+> │   [Windows] [Linux] [macOS] [MIT]                    │
+> └──────────────────────────────────────────────────────┘
+> ```
+
+PowerPoint works fine: set the slide to 13.33in × 6.67in (1280×640) and export
+as PNG.
 
 ## Verifying
 
