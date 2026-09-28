@@ -963,10 +963,11 @@ if (isDirectRun) {
 // SEA では process.argv[1] が実行ファイル自身になるため上の isDirectRun は常に false になる。
 // 単体ビルド (EH_EMBEDDED 未設定) のときだけ自分がエントリとして起動する。
 // run_all 統合版では run_all_sea_entry / run_all.mjs が制御するためここは発火しない。
+// 注意: argv[1] は OS や起動方法 (相対パス) で表記が変わるため、解決済みパスで比較する。
 if (
   !isDirectRun &&
   typeof process.argv[1] === "string" &&
-  process.argv[1] === process.execPath &&
+  (() => { try { return path.resolve(process.argv[1]) === path.resolve(process.execPath); } catch { return false; } })() &&
   process.env.EH_EMBEDDED !== "1"
 ) {
   main(process.argv.slice(2)).catch((e) => {
