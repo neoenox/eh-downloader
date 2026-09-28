@@ -1,7 +1,7 @@
 {
   "name": "eh-downloader",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "E-Hentai gallery downloader, converter and image viewer",
   "license": "MIT",
   "scripts": {

@@ -66,7 +66,7 @@ mode con: cols=110 lines=35
 
 - 事前に URL をクリップボードに貼っておき、タイピング時間を短縮
 - 509 対策の `--delay 1.2` で進捗が遅く見えないよう、**少数枚のギャラリー**で撮る
-- `eh-runall.exe` にはアイコンとバージョンリソース (FileVersion 1.2.0 / 説明
+- `eh-runall.exe` にはアイコンとバージョンリソース (FileVersion 1.2.1 / 説明
   「E-Hentai All-in-One (DL / Convert / View)」) が埋め込まれています。
   タスクバーやエクスプローラーに映るアイコンもそのままデモになります
 
@@ -206,7 +206,7 @@ it shows the exact verify-then-run sequence from the quick start.
   use a 14–16pt monospace font
 - Prepare the URL in the clipboard in advance and record a small gallery so
   progress is visible
-- The exe ships with an embedded icon and version resource (FileVersion 1.2.0,
+- The exe ships with an embedded icon and version resource (FileVersion 1.2.1,
   "E-Hentai All-in-One (DL / Convert / View)") — let it show in the taskbar
 
 ## Optimize
