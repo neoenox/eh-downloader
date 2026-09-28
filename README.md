@@ -14,6 +14,31 @@ E-Hentai のギャラリー画像を一括ダウンロードし、WebP → PNG/J
 
 `sharp` をインストールするとビューワーの一覧がサムネイル表示になり、大きなフォルダでも快適に閲覧できます（未インストールでもビューワー自体は動作します）。
 
+## クイックスタート (初めての方はこちら)
+
+**方法 A: 単一 exe を使う (おすすめ・インストール不要)**
+
+1. [Releases](https://github.com/neoenox/eh-downloader/releases/latest) から `eh-runall-windows-x64.exe` をダウンロード
+2. **必ず改ざん検証する** → 手順は [改ざん検証 (SHA-256)](#改ざん検証-sha-256) (exe と同じフォルダに `verify_checksums.bat` を置いてダブルクリックが簡単)
+3. exe をダブルクリックして URL を入力 → ダウンロード → 変換 → ブラウザで閲覧まで自動
+4. D&D や「送る」メニューにも対応 → [「送る」メニュー登録ガイド](docs/send-to.md)
+
+> Node.js のインストールは不要です。Windows 以外は `eh-runall-linux-x64` / `eh-runall-macos-arm64` (+ `.tar.gz`) を使用。
+
+**方法 B: Node.js スクリプトで使う (開発・カスタマイズ向け)**
+
+```bash
+# 1. Node.js v18+ をインストールし、このリポジトリを clone
+git clone https://github.com/neoenox/eh-downloader.git && cd eh-downloader
+npm install            # 変換・サムネイル用の sharp をインストール
+
+# 2. 1 コマンドでダウンロード → 変換 → 閲覧
+node run_all.mjs https://e-hentai.org/g/3553112/f4c015ef04/
+# Windows なら run_all.bat をダブルクリックでも OK
+```
+
+目的別ガイド: [送るメニュー](docs/send-to.md) / [Social preview](docs/social-preview.md) / [GIF デモ](docs/gif-demo.md) / [自前ビルド](#自分でビルド)
+
 ## 必要環境
 
 - [Node.js](https://nodejs.org/) v18 以上（`fetch` を内蔵しているため）
@@ -198,6 +223,8 @@ node image_viewer.mjs ./pics --port 9000          # ポート指定
 
 ### リリースからダウンロード (ビルド不要)
 
+> ⬇ ダウンロード後は [改ざん検証 (SHA-256)](#改ざん検証-sha-256) を実施してください。
+
 `v*` タグを push すると GitHub Actions が 3 OS 向けバイナリを自動ビルドし、Release に添付します:
 
 | アセット | 対象 |
@@ -219,6 +246,8 @@ git tag v1.0.0 && git push origin v1.0.0   # → Release が自動作成され�
 > macOS で「開発元が検証できません」と出た場合は `xattr -d com.apple.quarantine eh-viewer-macos-arm64` を実行してください（未署名バイナリのため）。
 
 ### 改ざん検証 (SHA-256)
+
+> **初めて exe をダウンロードした方は必ずこの手順を実施してください。** (クイックスタート のステップ 2)
 
 Release には各 OS の `SHA256SUMS-<os>.txt` が添付されます。ダウンロード後に改ざんされていないか確認できます。
 
@@ -395,6 +424,31 @@ A set of Node.js scripts to batch-download E-Hentai galleries, convert the downl
 
 **One command for everything:** `run_all.bat <URL>` downloads, converts and opens the viewer automatically. Installing `sharp` upgrades the viewer with fast cached thumbnails — recommended for large folders (the viewer works without it too). The viewer can also be built into a single standalone exe (see below).
 
+## Quick start (first time here?)
+
+**Option A: use the single exe (recommended — nothing to install)**
+
+1. Download `eh-runall-windows-x64.exe` from [Releases](https://github.com/neoenox/eh-downloader/releases/latest)
+2. **Always verify the download first** → see [Tamper check (SHA-256)](#tamper-check-sha-256) (easiest: put `verify_checksums.bat` next to the exe and double-click it)
+3. Double-click the exe, paste a gallery URL, and it downloads → converts → opens the viewer in your browser
+4. Drag & drop and the Windows "Send to" menu are supported too → see the [Send-to menu guide](docs/send-to.md)
+
+> No Node.js required. On other platforms use `eh-runall-linux-x64` / `eh-runall-macos-arm64` (+ `.tar.gz`).
+
+**Option B: run as Node.js scripts (for development / customization)**
+
+```bash
+# 1. Install Node.js v18+, then clone this repository
+git clone https://github.com/neoenox/eh-downloader.git && cd eh-downloader
+npm install            # installs sharp for conversion & thumbnails
+
+# 2. Download → convert → view in one command
+node run_all.mjs https://e-hentai.org/g/3553112/f4c015ef04/
+# or double-click run_all.bat on Windows
+```
+
+Guides: [Send-to menu](docs/send-to.md) / [Social preview](docs/social-preview.md) / [GIF demo](docs/gif-demo.md) / [Build it yourself](#build-it-yourself)
+
 ## Requirements
 
 - [Node.js](https://nodejs.org/) v18+ (has built-in `fetch`)
@@ -567,6 +621,8 @@ node image_viewer.mjs ./pics --port 9000          # custom port
 
 ### Download from Releases (no build needed)
 
+> ⬇ After downloading, run the [tamper check (SHA-256)](#tamper-check-sha-256).
+
 Pushing a `v*` tag makes GitHub Actions build binaries for all three OSes and attach them to a Release:
 
 | Asset | Target |
@@ -587,6 +643,8 @@ git tag v1.0.0 && git push origin v1.0.0   # -> Release is created automatically
 > On macOS, if you see "cannot verify the developer", run `xattr -d com.apple.quarantine eh-viewer-macos-arm64` (the binary is unsigned).
 
 ### Tamper check (SHA-256)
+
+> **If you just downloaded an exe, run this check first.** (step 2 of the [Quick start](#quick-start-first-time-here))
 
 Each Release ships a `SHA256SUMS-<os>.txt` so you can verify the downloaded binaries have not been tampered with.
 
