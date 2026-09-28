@@ -5,6 +5,10 @@ node_modules/
 [0-9]*/
 index.json
 failed_urls.txt
+.thumbcache/
+
+# Single-exe build output
+dist/
 *.webp
 *.png
 *.jpeg

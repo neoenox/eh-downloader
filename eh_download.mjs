@@ -49,60 +49,65 @@ const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
 // ---------- 引数解析 ----------
-const args = process.argv.slice(2);
-if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
-  const lines = fs.readFileSync(new URL(import.meta.url), "utf8").split("\n");
-  const end = lines.findIndex((l) => l.trim() === "*/");
-  console.log(lines.slice(1, end).map((l) => l.replace(/^ \* ?/, "")).join("\n"));
-  process.exit(args.length === 0 ? 1 : 0);
+// モジュール top-level での argv 解析は行わない (単一exe埋め込み時は runDownload(argv)
+// 経由で実行されるため)。直接実行時は末尾の isDirectRun ブロックから batchMain() が呼ばれる。
+// 実行パラメータは batchMain() 冒頭で代入する (取得系関数から参照されるためモジュールスコープ)。
+let listFile = null, urlArgs = [], outRoot = ".";
+let wantOriginal = false, cookie = "", delayMs = 1200, parallel = 2;
+let convertFormat = null, convertQuality = 90, deleteAfterConvert = false, saveMetadata = true;
+
+function printHelpFromComment() {
+  try {
+    const lines = fs.readFileSync(new URL(import.meta.url), "utf8").split("\n");
+    const end = lines.findIndex((l) => l.trim() === "*/");
+    console.log(lines.slice(1, end).map((l) => l.replace(/^ \* ?/, "")).join("\n"));
+  } catch {
+    // SEA (単一exe) ではソースが読めないため固定文字列で代替
+    console.log("使い方: eh_download.mjs <ギャラリーURL...> [保存先ディレクトリ] [オプション]\n\nオプション:\n  --list <file>   URL一覧ファイルを一括処理 (1行1URL)\n  --parallel N    同時接続数 (デフォルト: 2。推奨 2〜3)\n  --original      オリジナル画質を試みる (要ログインCookie)\n  --cookie \"...\" Cookie文字列 (exhentai.org や --original には必要)\n  --delay 秒      リクエスト間隔 (デフォルト: 1.2)\n  --help          ヘルプ表示\n\n環境変数 EH_COOKIE でもCookieを渡せます。\n再実行するとダウンロード済みのファイルはスキップされます(レジューム)。");
+  }
 }
 
-// 値を1つ取るオプションの次の引数は位置引数から除外する
-const VALUE_FLAGS = new Set(["--cookie", "--delay", "--parallel", "-j", "--list", "--convert", "--quality"]);
-const positionals = [];
-for (let i = 0; i < args.length; i++) {
-  if (VALUE_FLAGS.has(args[i])) { i++; continue; }
-  if (args[i].startsWith("--")) continue;
-  positionals.push(args[i]);
-}
+function parseCli(args) {
+  // 値を1つ取るオプションの次の引数は位置引数から除外する
+  const VALUE_FLAGS = new Set(["--cookie", "--delay", "--parallel", "-j", "--list", "--convert", "--quality"]);
+  const positionals = [];
+  for (let i = 0; i < args.length; i++) {
+    if (VALUE_FLAGS.has(args[i])) { i++; continue; }
+    if (args[i].startsWith("--")) continue;
+    positionals.push(args[i]);
+  }
 
-const listFlagIdx = args.indexOf("--list");
-let listFile = listFlagIdx !== -1 ? args[listFlagIdx + 1] : null;
+  const listFlagIdx = args.indexOf("--list");
+  let listFile = listFlagIdx !== -1 ? args[listFlagIdx + 1] : null;
 
-// 位置引数を URL とそれ以外 (保存先など) に分類 → 複数 URL の直接指定が可能に
-const urlArgs = positionals.filter((p) => /^https?:\/\//i.test(p));
-const dirArgs = positionals.filter((p) => !/^https?:\/\//i.test(p));
+  // 位置引数を URL とそれ以外 (保存先など) に分類 → 複数 URL の直接指定が可能に
+  const urlArgs = positionals.filter((p) => /^https?:\/\//i.test(p));
+  const dirArgs = positionals.filter((p) => !/^https?:\/\//i.test(p));
 
-// --list 未指定でも、非 URL 位置引数に実在ファイルがあれば一覧ファイルとして扱う (位置は不問)
-if (!listFile) {
-  const fileIdx = dirArgs.findIndex((d) => { try { return fs.statSync(d).isFile(); } catch { return false; } });
-  if (fileIdx !== -1) listFile = dirArgs.splice(fileIdx, 1)[0];
-}
-// 保存先は残った非 URL 位置引数の先頭 (省略時はカレントディレクトリ)
-const outRoot = dirArgs[0] || ".";
+  // --list 未指定でも、非 URL 位置引数に実在ファイルがあれば一覧ファイルとして扱う (位置は不問)
+  if (!listFile) {
+    const fileIdx = dirArgs.findIndex((d) => { try { return fs.statSync(d).isFile(); } catch { return false; } });
+    if (fileIdx !== -1) listFile = dirArgs.splice(fileIdx, 1)[0];
+  }
+  // 保存先は残った非 URL 位置引数の先頭 (省略時はカレントディレクトリ)
+  const outRoot = dirArgs[0] || ".";
 
-const wantOriginal = args.includes("--original");
-const cookieArgIdx = args.indexOf("--cookie");
-const cookie = cookieArgIdx !== -1 ? args[cookieArgIdx + 1] : process.env.EH_COOKIE || "";
-const delayIdx = args.indexOf("--delay");
-const delayMs = Math.round((delayIdx !== -1 ? parseFloat(args[delayIdx + 1]) : 1.2) * 1000);
-const parallelIdx = Math.max(args.indexOf("--parallel"), args.indexOf("-j"));
-const parallel = Math.max(1, parallelIdx !== -1 ? parseInt(args[parallelIdx + 1], 10) || 2 : 2);
-const convertIdx = args.indexOf("--convert");
-const convertArg = convertIdx !== -1 ? (args[convertIdx + 1] || "").toLowerCase() : null;
-const convertFormat = convertArg === "jpg" ? "jpeg" : convertArg;
-const qualityIdx = args.indexOf("--quality");
-const convertQuality = qualityIdx !== -1 ? Math.min(100, Math.max(1, parseInt(args[qualityIdx + 1], 10) || 90)) : 90;
-const deleteAfterConvert = args.includes("--del");
-const saveMetadata = !args.includes("--no-metadata");
+  const wantOriginal = args.includes("--original");
+  const cookieArgIdx = args.indexOf("--cookie");
+  const cookie = cookieArgIdx !== -1 ? args[cookieArgIdx + 1] : process.env.EH_COOKIE || "";
+  const delayIdx = args.indexOf("--delay");
+  const delayMs = Math.round((delayIdx !== -1 ? parseFloat(args[delayIdx + 1]) : 1.2) * 1000);
+  const parallelIdx = Math.max(args.indexOf("--parallel"), args.indexOf("-j"));
+  const parallel = Math.max(1, parallelIdx !== -1 ? parseInt(args[parallelIdx + 1], 10) || 2 : 2);
+  const convertIdx = args.indexOf("--convert");
+  const convertArg = convertIdx !== -1 ? (args[convertIdx + 1] || "").toLowerCase() : null;
+  const convertFormat = convertArg === "jpg" ? "jpeg" : convertArg;
+  const qualityIdx = args.indexOf("--quality");
+  const convertQuality = qualityIdx !== -1 ? Math.min(100, Math.max(1, parseInt(args[qualityIdx + 1], 10) || 90)) : 90;
+  const deleteAfterConvert = args.includes("--del");
+  const saveMetadata = !args.includes("--no-metadata");
 
-if (convertFormat && convertFormat !== "png" && convertFormat !== "jpeg") {
-  console.error("エラー: --convert は png または jpeg を指定してください");
-  process.exit(1);
-}
-if (deleteAfterConvert && !convertFormat) {
-  console.error("エラー: --del は --convert png|jpeg と組み合わせて指定してください");
-  process.exit(1);
+  return { listFile, urlArgs, outRoot, wantOriginal, cookie, delayMs, parallel, convertFormat, convertQuality, deleteAfterConvert, saveMetadata };
 }
 
 // ---------- ユーティリティ ----------
@@ -503,40 +508,70 @@ function readUrlList(file) {
     }
   }
   return [...new Set(urls)]; // 重複除去
+}// ---------- メイン (バッチ制御) ----------
+// 直接実行 (node eh_download.mjs ...) のときだけ起動する。
+// run_all.mjs からは libraryMain(argv) として呼び出される (単一exe埋め込み対応)。
+const isDirectRun =
+  typeof process.argv[1] === "string" &&
+  process.argv[1] !== process.execPath && // SEA (単一exe) では argv[1] が実行ファイル自身になるため除外
+  (() => { try { return path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url)); } catch { return false; } })();
+
+async function libraryMain(argv = process.argv.slice(2)) {
+  const savedArgv = process.argv;
+  process.argv = [process.argv[0], "eh_download.mjs", ...argv];
+  try {
+    return await batchMain(argv);
+  } finally {
+    process.argv = savedArgv;
+  }
 }
 
-// ---------- メイン (バッチ制御) ----------
-(async () => {
+async function batchMain(argv = process.argv.slice(2)) {
+  if (argv.length === 0 || argv.includes("--help") || argv.includes("-h")) {
+    printHelpFromComment();
+    return argv.length === 0 ? 1 : 0;
+  }
+  ({ listFile, urlArgs, outRoot, wantOriginal, cookie, delayMs, parallel, convertFormat, convertQuality, deleteAfterConvert, saveMetadata } = parseCli(argv));
+  if (convertFormat && convertFormat !== "png" && convertFormat !== "jpeg") {
+    console.error("エラー: --convert は png または jpeg を指定してください");
+    return 1;
+  }
+  if (deleteAfterConvert && !convertFormat) {
+    console.error("エラー: --del は --convert png|jpeg と組み合わせて指定してください");
+    return 1;
+  }
   let urls;
   if (listFile) {
     if (!fs.existsSync(listFile)) {
       console.error(`エラー: 一覧ファイルが見つかりません: ${listFile}`);
-      process.exit(1);
+      return 1;
     }
     if (urlArgs.length > 0) {
+
       console.error(
         `エラー: --list とギャラリーURLの同時指定はできません (--list を外すか、URL直指定に統一してください)\n` +
         `  一覧: ${listFile}\n  無視されるURL: ${urlArgs.join(" ")}`
       );
-      process.exit(1);
+      return 1;
     }
     urls = readUrlList(listFile);
     if (urls.length === 0) {
       console.error("エラー: 一覧ファイルにURLがありません (1行1URLで記述してください)");
-      process.exit(1);
+      return 1;
     }
     log(`▶ 一覧ファイル: ${listFile} (${urls.length} ギャラリー)`);
   } else {
     if (urlArgs.length === 0) {
       console.error("エラー: ギャラリーURLを指定してください (--help で使い方)");
-      process.exit(1);
+      return 1;
     }
     urls = urlArgs;
     if (urls.length > 1) log(`▶ ${urls.length} ギャラリーを連続ダウンロードします`);
   }
   for (const u of urls) {
-    try { new URL(u); } catch { console.error(`エラー: URLが不正です: ${u}`); process.exit(1); }
+    try { new URL(u); } catch { console.error(`エラー: URLが不正です: ${u}`); return 1; }
   }
+
   if (parallel > 3) log("⚠ 同時接続数が多めです。509制限のリスクが上がります (推奨: 2〜3)");
 
   const batchStart = Date.now();
@@ -579,10 +614,19 @@ function readUrlList(file) {
     const failedFile = path.resolve(outRoot, "failed_urls.txt");
     fs.writeFileSync(failedFile, failedUrls.join("\n") + "\n");
     log(`⚠ 失敗ギャラリーを ${failedFile} に書き出しました`);
-    log(`  再実行: node ${path.basename(process.argv[1])} --list "${failedFile}"`);
-    process.exitCode = 2;
+    log(`  再実行: node ${path.basename(process.argv[1] || "eh_download.mjs")} --list "${failedFile}"`);
+    return 2; // 一部失敗
   }
-})().catch((e) => {
-  console.error("エラー:", e.stack || e.message);
-  process.exit(1);
-});
+  return 0;
+}
+
+if (isDirectRun) {
+  batchMain().then((code) => {
+    if (code) process.exitCode = code;
+  }).catch((e) => {
+    console.error("エラー:", e.stack || e.message);
+    process.exit(1);
+  });
+}
+
+export { libraryMain as runDownload, libraryMain as main };

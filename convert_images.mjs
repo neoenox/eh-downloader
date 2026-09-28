@@ -27,17 +27,39 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import sharp from "sharp";
+import { fileURLToPath } from "node:url";
+import { getSharp } from "./sharp_loader.mjs";
+// 直接実行 (node convert_images.mjs ...) のときだけ起動する。
+// run_all.mjs からは runConvert(argv) として呼び出される (単一exe埋め込み対応)。
+// SEA (単一exe) では import.meta.url が使えないため、その場合はライブラリ呼び出し専用になる
+// (直接起動は run_all_sea_entry 側の分岐で処理する)。
+const isDirectRun =
+  typeof process.argv[1] === "string" &&
+  process.argv[1] !== process.execPath && // SEA (単一exe) では argv[1] が実行ファイル自身になるため除外
+  (() => { try { return path.resolve(process.argv[1]) === fileURLToPath(import.meta.url); } catch { return false; } })();
 
-sharp.cache(false);
+function printHelpFromComment() {
+  try {
+    const lines = fs.readFileSync(new URL(import.meta.url), "utf8").split("\n");
+    const end = lines.findIndex((l) => l.trim() === "*/");
+    console.log(lines.slice(1, end).map((l) => l.replace(/^ \* ?/, "")).join("\n"));
+  } catch {
+    console.log("使い方: convert_images.mjs <画像ディレクトリ> [--format png|jpeg] [--quality N] [--out DIR] [--force] [--del]");
+  }
+}
 
-// ---------- 引数解析 ----------
-const args = process.argv.slice(2);
+async function main(argv = process.argv.slice(2)) {
+  const sharp = getSharp();
+  if (!sharp) {
+    console.error("エラー: sharp が読み込めません (npm install sharp を実行してください)");
+    return 1;
+  }
+  sharp.cache(false);
+
+  const args = argv;
 if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
-  const lines = fs.readFileSync(new URL(import.meta.url), "utf8").split("\n");
-  const end = lines.findIndex((l) => l.trim() === "*/");
-  console.log(lines.slice(1, end).map((l) => l.replace(/^ \* ?/, "")).join("\n"));
-  process.exit(args.length === 0 ? 1 : 0);
+  printHelpFromComment();
+  return args.length === 0 ? 1 : 0;
 }
 
 const VALUE_FLAGS = new Set(["--format", "--quality", "--out", "--parallel"]);
@@ -65,11 +87,11 @@ const parallel = Math.max(1, Math.min(8, parallelIdx !== -1 ? parseInt(args[para
 // ---------- バリデーション ----------
 if (format !== "png" && format !== "jpeg") {
   console.error("エラー: --format は png または jpeg を指定してください");
-  process.exit(1);
+  return 1;
 }
 if (!inDir || !fs.existsSync(inDir) || !fs.statSync(inDir).isDirectory()) {
   console.error(`エラー: 入力ディレクトリが不正です: ${inDir || "(未指定)"}`);
-  process.exit(1);
+  return 1;
 }
 
 const ext = format === "jpeg" ? ".jpg" : ".png";
@@ -79,7 +101,7 @@ fs.mkdirSync(outDir, { recursive: true });
 const files = fs.readdirSync(inDir).filter((f) => /\.webp$/i.test(f) && fs.statSync(path.join(inDir, f)).isFile()).sort();
 if (files.length === 0) {
   console.error(`エラー: ${inDir} にWebPファイルがありません`);
-  process.exit(1);
+  return 1;
 }
 
 const log = (...a) => console.log(...a);
@@ -105,7 +127,6 @@ async function convertOne(file) {
   let pipe = sharp(src);
   if (format === "jpeg") pipe = pipe.jpeg({ quality, mozjpeg: true });
   else pipe = pipe.png({ compressionLevel: 9 });
-
   await pipe.toFile(dest);
 
   const inSize = fs.statSync(src).size;
@@ -137,4 +158,16 @@ await Promise.all(Array.from({ length: Math.min(parallel, files.length) }, worke
 const secs = ((Date.now() - startedAt) / 1000).toFixed(0);
 log(`\n■ 完了: 変換${done} / スキップ${skipped} / 失敗${failed} / 所要${secs}秒`);
 if (done > 0) log(`  合計サイズ: ${fmtKB(bytesIn)} → ${fmtKB(bytesOut)} (${((bytesOut / bytesIn) * 100).toFixed(0)}%) → ${outDir}`);
-if (failed > 0) process.exitCode = 2;
+return failed > 0 ? 2 : 0;
+}
+
+if (isDirectRun) {
+  main().then((code) => {
+    if (code) process.exitCode = code;
+  }).catch((e) => {
+    console.error("エラー:", e.stack || e.message);
+    process.exit(1);
+  });
+}
+
+export { main as runConvert, main };

@@ -32,8 +32,15 @@ jobs:
         run: |
           node --check eh_download.mjs
           node --check convert_images.mjs
+          node --check image_viewer.mjs
+          node --check run_all.mjs
+          node --check run_all_sea_entry.mjs
+          node --check sharp_loader.mjs
+          node --check build_exe.mjs
           node --check test_eh_download.mjs
           node --check test_convert_images.mjs
+          node --check test_image_viewer.mjs
+          node --check test_run_all.mjs
 
       - name: Install conversion test dependency
         run: npm install --no-save sharp
@@ -43,6 +50,16 @@ jobs:
 
       - name: Image conversion integration test
         run: node test_convert_images.mjs
+
+      - name: Integration test (all-in-one launcher)
+        run: node test_run_all.mjs
+
+      # サムネイル生成テスト用 (sharp は optional。無い環境では自動スキップされる)
+      - name: Install sharp for viewer thumbnail tests
+        run: npm install sharp --no-fund --no-audit
+
+      - name: Integration test (image viewer)
+        run: node test_image_viewer.mjs
 
       - name: Force failure for Slack notification test
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.force_failure }}

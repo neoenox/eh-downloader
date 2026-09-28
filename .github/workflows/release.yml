@@ -1,0 +1,141 @@
+name: Release
+
+# タグ (v1.2.3 形式) を push すると 3 OS 向けの単一 exe をビルドして
+# GitHub Release に自動で添付する。
+# ビューワー単体 (eh-viewer) と run_all 統合版 (eh-runall) の両方を同梱。
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # Release 作成とアセット添付に必要
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # ビルド OS の node.exe をベースにするため、配布したい OS と同じランナーでビルドする
+        include:
+          - os: windows-latest
+            arch: x64
+            ext: .exe
+          - os: ubuntu-latest
+            arch: x64
+            ext: ""
+          - os: macos-latest
+            arch: arm64
+            ext: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies (incl. sharp + dev deps)
+        run: npm install --no-fund --no-audit
+
+      - name: Build viewer exe
+        run: node build_exe.mjs --out dist --version ${{ github.ref_name }}
+
+      - name: Build run_all all-in-one exe
+        run: node build_exe.mjs --runall --out dist --version ${{ github.ref_name }}
+
+      - name: Stage assets
+        shell: bash
+        run: |
+          mkdir -p upload
+          OS=$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')
+          # macOS ランナーは arm64。それ以外は x64
+          if [ "$RUNNER_OS" = "macOS" ]; then ARCH=arm64; else ARCH=x64; fi
+          if [ "$RUNNER_OS" = "Windows" ]; then EXT=.exe; else EXT=""; fi
+
+          cp dist/eh-viewer$EXT  "upload/eh-viewer-$OS-$ARCH$EXT"
+          cp dist/eh-runall$EXT  "upload/eh-runall-$OS-$ARCH$EXT"
+
+          # Linux/macOS は実行ビットを保持したまま tar.gz にもまとめる (zip はパーミッションを落とす)
+          if [ "$RUNNER_OS" != "Windows" ]; then
+            tar -czf "upload/eh-viewer-$OS-$ARCH.tar.gz" -C upload "eh-viewer-$OS-$ARCH"
+            tar -czf "upload/eh-runall-$OS-$ARCH.tar.gz" -C upload "eh-runall-$OS-$ARCH"
+          fi
+          ls -la upload/
+
+      - name: Generate SHA256 checksums
+        shell: bash
+        run: |
+          OS=$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')
+          cd upload
+          # GitHub Release 添付用のチェックサム一覧 (shasum -a 256 / certutil 互換形式)
+          sha256sum eh-viewer-* eh-runall-* > "SHA256SUMS-$OS.txt"
+          cat "SHA256SUMS-$OS.txt"
+          # 自己検証 (1つでも不一致ならここで失敗させる)
+          sha256sum -c "SHA256SUMS-$OS.txt"
+
+      - name: Smoke test built binaries
+        shell: bash
+        run: |
+          mkdir -p smoke-pics
+          node -e "require('sharp')({create:{width:800,height:600,channels:3,background:{r:80,g:120,b:180}}}).png().toFile('smoke-pics/a.png').then(()=>console.log('sample created'))"
+          OS=$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')
+          if [ "$RUNNER_OS" = "macOS" ]; then ARCH=arm64; else ARCH=x64; fi
+          if [ "$RUNNER_OS" = "Windows" ]; then EXT=.exe; else EXT=""; fi
+
+          VIEWER="upload/eh-viewer-$OS-$ARCH$EXT"
+          RUNALL="upload/eh-runall-$OS-$ARCH$EXT"
+          "$VIEWER" --version
+          "$RUNALL" --version
+
+          "$VIEWER" smoke-pics --port 8541 --no-open > server.log 2>&1 &
+          n=0
+          until curl -sf http://localhost:8541/api/list > /dev/null; do
+            n=$((n+1)); [ $n -gt 30 ] && { echo 'server did not start'; cat server.log; exit 1; }
+            sleep 1
+          done
+          curl -sf -o /dev/null -w 'thumb: %{http_code} (%{size_download}B)\n' 'http://localhost:8541/api/thumb?f=a.png'
+          curl -sf 'http://localhost:8541/api/quit'
+          sleep 1
+
+          # run_all 統合版: --open-only でビューワーが起動すること (自己 spawn __view 経由)
+          "$RUNALL" --open-only smoke-pics --port 8542 --no-open
+          n=0
+          until curl -sf http://localhost:8542/api/list > /dev/null; do
+            n=$((n+1)); [ $n -gt 30 ] && { echo 'runall viewer did not start'; exit 1; }
+            sleep 1
+          done
+          curl -sf 'http://localhost:8542/api/quit'
+          sleep 1
+          echo "smoke test passed ($OS-$ARCH)"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: eh-exe-${{ matrix.os }}
+          path: upload/*
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List assets
+        run: find artifacts -type f | sort
+
+      - name: Create Release and attach assets
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            artifacts/**/eh-viewer-*
+            artifacts/**/eh-runall-*
+            artifacts/**/SHA256SUMS-*

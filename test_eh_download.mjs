@@ -73,12 +73,15 @@ const doneMarker = path.join(tmp, "__test_done__");
 const logs = [];
 const origLog = console.log;
 console.log = (...a) => { logs.push(a.join(" ")); };
+let runDlResult = null;
 try {
-  await import("./eh_download.mjs");
+  // ライブラリ化済み: runDownload(argv) を明示呼び出しする (直接 import は副作用なし)
+  const { runDownload } = await import("./eh_download.mjs");
+  runDlResult = await runDownload([G1, G2, G_BAD, "--delay", "0"]);
 } catch (e) {
   logs.push(`[import エラー] ${e.stack || e.message}`);
 }
-// スクリプトの async IIFE 完了を待つ: サマリ or エラー出力 (または失敗) を検知したら done マーカーを書く
+// runDownload の完了を待つ: サマリ or エラー出力 (または失敗) を検知したら done マーカーを書く
 const waitDone = (async () => {
   for (let i = 0; i < 600; i++) {
     const s = logs.join("\n");
@@ -99,6 +102,7 @@ const checks = [];
 const check = (name, cond) => checks.push({ name, cond });
 
 process.chdir(origCwd); // Windows ではカレントディレクトリを削除できないため先に戻る
+check("exitCode が 2 (一部失敗)", runDlResult === 2);
 const g1Dir = fs.readdirSync(tmp).find((d) => d === "111__CON");
 const g2Dir = fs.readdirSync(tmp).find((d) => d === "gallery_222");
 check("import がエラーなく完了", !/\[import エラー\]|\[タイムアウト\]/.test(output));
@@ -115,7 +119,6 @@ check("metadata.json に主要タグを保存", metadata.tags.artist.includes("a
 check("バッチ結果が3ギャラリーと表示", /バッチ結果 \(3 ギャラリー\)/.test(output));
 check("G3(404) が失敗扱い", /✖ https:\/\/e-hentai\.org\/g\/333\//.test(output));
 check("failed_urls.txt に失敗URLが書き出された", fs.existsSync(path.join(tmp, "failed_urls.txt")) && fs.readFileSync(path.join(tmp, "failed_urls.txt"), "utf8").includes(G_BAD));
-check("exitCode が 2 (一部失敗)", process.exitCode === 2);
 
 let failedCount = 0;
 for (const c of checks) {
@@ -139,8 +142,9 @@ const runCli = (argv) =>
 const mockWrapper = path.join(cliTmp, "mock_404_runner.mjs");
 fs.writeFileSync(
   mockWrapper,
-  `// 404 を返す fetch モック → eh_download.mjs を import 実行
+  `// 404 を返す fetch モック → eh_download.mjs の runDownload を実行
 import fs from "node:fs";
+import path from "node:path";
 const realFetch = globalThis.fetch;
 let notFoundHits = 0;
 globalThis.fetch = async (url, opts) => {
@@ -148,12 +152,13 @@ globalThis.fetch = async (url, opts) => {
   if (/\\/g\\/333\\//.test(u)) {
     notFoundHits++;
     // 呼び出し回数をファイルに記録 (親プロセスから検証する)
-    fs.writeFileSync(${JSON.stringify(path.join(cliTmp, "notfound_hits.txt"))}, String(notFoundHits));
+    fs.writeFileSync(path.join(${JSON.stringify(cliTmp)}, "notfound_hits.txt"), String(notFoundHits));
     return { ok: false, status: 404, text: async () => "not found", headers: { get: (k) => (String(k).toLowerCase() === "content-type" ? "text/html" : null) }, arrayBuffer: async () => new ArrayBuffer(0) };
   }
   return realFetch(url, opts);
 };
-await import(${JSON.stringify(pathToFileURL(scriptPath).href)});
+const { runDownload } = await import(${JSON.stringify(pathToFileURL(scriptPath).href)});
+process.exitCode = await runDownload([${JSON.stringify(G_BAD)}]);
 `,
 );
 
