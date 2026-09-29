@@ -410,12 +410,15 @@ node convert_images.mjs "3553112_gallery title" --format jpeg --quality 90
 
 次回以降の機能追加候補です (順不同・実装保証なし)。興味のあるものがあれば Issue / PR でどうぞ。
 
+v1.3.0 で達成: docs 整合性チェッカーの CI 組み込み、README/docs の日英同期、ロードマップ自体の公開。
+
 ### 利便性
 
 - [ ] **ギャラリー検索 / タグ閲覧** — `metadata.json` に保存したタグ (artist / language / character) でダウンロード済みコレクションを横断検索・フィルタするビューワー拡張
 - [ ] **差分更新 (再同期)** — ギャラリーに新規ページが追加されたとき、既存フォルダに追加分だけをダウンロード
 - [ ] **exhentai 対応の案内整備** — Cookie 設定フローの対話化 (`--cookie` / `EH_COOKIE` の入力支援)
 - [ ] **サムネイルキャッシュの共有化** — `.thumbcache/` を中央一括管理にしてフォルダ移動時に再生成しない
+- [x] **ビューワーの専用ウィンドウ化** — Windows では Edge アプリモードでアドレスバー無しの独立ウィンドウとして起動 (v1.3.0)。`--window-size` で初期サイズも指定可能
 
 ### 配布・インストール
 
@@ -428,12 +431,14 @@ node convert_images.mjs "3553112_gallery title" --format jpeg --quality 90
 
 - [ ] **e2e テストの拡充** — モックサーバーを使った 509 / ネットワーク断・レジューム回りの境界テスト追加
 - [ ] **タイムアウト/リトライの設定化** — `--timeout` / `--retries` オプションの追加 (現在は内部固定値)
-- [ ] **CI への docs 検証組み込みの拡大** — リリースワークフロー完成後の `check:docs --tag <新しいタグ>` 自動照合
+- [x] **CI への docs 検証組み込み** — `check:docs` を CI で常時実行 (アセット名 / SHA-256 コマンド / CLI フラグ / 相対リンク・アンカーを検証)。リリース後のタグ自動照合は今後の課題
+- [x] **ビューワー終了フローの自動テスト** — ✕終了 (`/api/quit`) が detached 起動でもゾンビプロセスを残さず終了することを CI で検証
 
 ### その他
 
 - [ ] **デモ GIF の追加** — [docs/gif-demo.md](docs/gif-demo.md) の構成案 #1〜#4 の録画
 - [ ] **多言語対応** — ビューワー UI メッセージの英語化 (現在はコンソール表示中心の日本語)
+- [x] **docs 目次の整備** — [docs/index.md](docs/index.md) を新設し全ガイドへの入口を整理 (v1.3.0)
 
 ## 免責
 
@@ -853,12 +858,16 @@ node convert_images.mjs "3553112_gallery title" --format jpeg --quality 90
 Candidate features for upcoming releases (unordered, no guarantees). Open an
 Issue / PR if you are interested in any of them.
 
+Shipped in v1.3.0: docs-consistency checker wired into CI, JA/EN doc alignment,
+and this public roadmap itself.
+
 ### Convenience
 
 - [ ] **Gallery search / tag browsing** — search & filter downloaded collections across `metadata.json` tags (artist / language / character) from the viewer
 - [ ] **Incremental re-sync** — when new pages are added to a gallery, download only the additions into the existing folder
 - [ ] **Smoother exhentai setup** — interactive cookie configuration helper for `--cookie` / `EH_COOKIE`
 - [ ] **Shared thumbnail cache** — manage `.thumbcache/` centrally so moving folders does not force regeneration
+- [x] **Standalone viewer window** — on Windows the viewer opens as an address-bar-free app-mode window via Edge (v1.3.0); the initial size is configurable via `--window-size`
 
 ### Distribution & installation
 
@@ -871,12 +880,14 @@ Issue / PR if you are interested in any of them.
 
 - [ ] **More e2e tests** — boundary tests around 509 / network loss / resume using the mock server
 - [ ] **Configurable timeouts/retries** — add `--timeout` / `--retries` options (currently hard-coded)
-- [ ] **Broader CI docs checks** — run `check:docs --tag <new tag>` automatically after release builds
+- [x] **Docs checks in CI** — `check:docs` runs on every CI build (asset names / SHA-256 commands / CLI flags / relative links & anchors). Automatic tag verification right after releases is still pending
+- [x] **Automated viewer quit-flow tests** — CI verifies the ✕ Quit button (`/api/quit`) exits cleanly without leaving a zombie process even when spawned detached
 
 ### Misc
 
 - [ ] **Demo GIFs** — record demos #1–#4 from the [GIF demo proposal](docs/gif-demo.md)
 - [ ] **Localization** — English viewer UI messages (console output is currently Japanese-centric)
+- [x] **Docs index** — added [docs/index.md](docs/index.md) as a single entry point to all guides (v1.3.0)
 
 ## Disclaimer
 
