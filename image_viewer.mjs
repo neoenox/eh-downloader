@@ -300,8 +300,22 @@ function openInExplorer(target, select) {
 
 function openBrowser(url) {
   try {
-    if (process.platform === "win32") exec(`start "" "${url}"`);
-    else if (process.platform === "darwin") exec(`open "${url}"`);
+    if (process.platform === "win32") {
+      // Edge の --app モードを優先: アドレスバー無しの専用ウィンドウで開く (ネイティブアプリ風)。
+      // Edge が見つからない環境では従来どおり既定ブラウザにフォールバック。
+      const edgeCandidates = [
+        path.join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "Microsoft\\Edge\\Application\\msedge.exe"),
+        path.join(process.env["ProgramFiles"] || "C:\\Program Files", "Microsoft\\Edge\\Application\\msedge.exe"),
+        path.join(process.env["LocalAppData"] || "", "Microsoft\\Edge\\Application\\msedge.exe"),
+      ].filter((p) => p && p !== "\\Microsoft\\Edge\\Application\\msedge.exe");
+      const edge = edgeCandidates.find((p) => { try { return fs.existsSync(p); } catch { return false; } });
+      if (edge) {
+        // --app ウィンドウは Edge プロセスが生きている間だけ開くため detached で起動する
+        spawn(edge, ["--app=" + url, "--window-size=1280,860"], { detached: true, stdio: "ignore" }).on("error", () => {}).unref();
+        return;
+      }
+      exec(`start "" "${url}"`);
+    } else if (process.platform === "darwin") exec(`open "${url}"`);
     else exec(`xdg-open "${url}"`);
   } catch { /* 開けなくてもサーバーは起動済みなので無視 */ }
 }

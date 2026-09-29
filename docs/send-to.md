@@ -16,7 +16,7 @@
 
 1. エクスプローラーでダウンロード済みギャラリーフォルダ（`3553112_タイトル/01.webp ...` など）を選択
 2. `run_all.bat` の上にドラッグ&ドロップ
-3. コンソールが開き、変換 → 完了後に既定ブラウザでビューワーが起動します
+3. コンソールが開き、変換 → 完了後にビューワーが起動します（Windows では Edge アプリモードの専用ウィンドウ。Edge 未インストールなら既定ブラウザ）
 
 - **複数フォルダを同時に投げても OK**。全部が変換され、ビューワーは最初のフォルダ（同一親フォルダ内ならその親）を開きます。PageDown /「次フォルダ」で切り替えられます
 - フォルダの中にサブフォルダが入れ子になっていても、画像を含むフォルダを自動で見つけてすべて変換します
@@ -96,7 +96,7 @@ Dropping a folder onto `run_all.bat` runs **WebP → PNG/JPEG conversion and ope
 
 1. Select a downloaded gallery folder in Explorer (`3553112_title/01.webp ...`)
 2. Drop it onto `run_all.bat`
-3. A console opens, converts the images, then the viewer starts in your default browser
+3. A console opens, converts the images, then the viewer starts (on Windows, in a standalone Edge app-mode window; falls back to the default browser without Edge)
 
 - You can drop **multiple folders at once**. All are converted; the viewer opens the first folder (or their common parent), and PageDown / "next folder" switches between galleries
 - Nested subfolders are searched automatically
