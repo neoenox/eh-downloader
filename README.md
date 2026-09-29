@@ -1,4 +1,4 @@
-# E-Hentai ダウンロード & 画像変換ツール
+# E-Hentai ダウンロード・画像変換ツール
 
 [![CI](https://github.com/neoenox/eh-downloader/actions/workflows/ci.yml/badge.svg?style=flat-square&label=CI)](https://github.com/neoenox/eh-downloader/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/neoenox/eh-downloader?style=flat-square&logo=github&label=release)](https://github.com/neoenox/eh-downloader/releases)
@@ -133,7 +133,7 @@ node eh_download.mjs urls.txt ./pics --parallel 3   # 保存先とオプショ�
 - **出力**: `<ギャラリーID>_<タイトル>/01.webp, 02.webp, ...`（連番ファイル名）
 - **メタデータ**: 既定で各フォルダに `metadata.json` を保存（カテゴリ、投稿日、評価、artist/character/series/language/category タグ）。不要なら `--no-metadata`
 
-### 注意
+### ダウンロードの注意
 
 - **オリジナル画質はログイン必須**。未ログインでは表示用の再サンプル画像（最大 1280px・WebP）を取得
 - 一時的に 509 制限がかかった場合は、しばらく待ってから再実行すれば続きから再開できます
@@ -155,7 +155,7 @@ node convert_images.mjs ./pics --force                       # 出力済みも�
 node convert_images.mjs ./pics --del                         # 変換成功後に元WebPを削除
 ```
 
-### オプション
+### 変換のオプション
 
 | オプション | 説明 |
 |---|---|
@@ -167,7 +167,7 @@ node convert_images.mjs ./pics --del                         # 変換成功後�
 | `--del` | 変換成功後に元の WebP を削除（⚠ 復元不可） |
 | `--help` | ヘルプ表示 |
 
-### 注意
+### 変換の注意
 
 - **PNG はロスレスなのでファイルが大幅に大きくなります**（実測: WebP の約 13 倍）。サイズ重視なら `--format jpeg --quality 90` を推奨（実測: 約 1.9 倍）
 - 出力先に同名の正常なファイルがあればスキップするため、再実行 OK
@@ -187,7 +187,7 @@ node image_viewer.mjs ./pics --recursive          # サブフォルダもまと�
 node image_viewer.mjs ./pics --port 9000          # ポート指定
 ```
 
-### オプション
+### ビューワーのオプション
 
 | オプション | 説明 |
 |---|---|
@@ -286,7 +286,7 @@ node build_exe.mjs --runall # → dist/eh-runall.exe (run_all 統合版)
 # または Windows なら build.bat をダブルクリック
 ```
 
-### オプション
+### ビルドのオプション
 
 | オプション | 説明 |
 |---|---|
@@ -422,7 +422,7 @@ node convert_images.mjs "3553112_gallery title" --format jpeg --quality 90
 [![Node.js](https://img.shields.io/badge/node-%E2%89%A518-339933.svg?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Issues](https://img.shields.io/github/issues/neoenox/eh-downloader?style=flat-square&label=issues)](https://github.com/neoenox/eh-downloader/issues)
 
-**English** | [日本語](#e-hentai-ダウンロード-画像変換ツール) | [Send-to menu guide](docs/send-to.md) | [Social preview guide](docs/social-preview.md) | [GIF demo proposal](docs/gif-demo.md) | [📖 Documentation index](docs/index.md)
+**English** | [日本語](#e-hentai-ダウンロード画像変換ツール) | [Send-to menu guide](docs/send-to.md) | [Social preview guide](docs/social-preview.md) | [GIF demo proposal](docs/gif-demo.md) | [📖 Documentation index](docs/index.md)
 
 A set of Node.js scripts to batch-download E-Hentai galleries, convert the downloaded WebP images to PNG/JPEG, and view them in your browser.
 
@@ -567,7 +567,7 @@ node convert_images.mjs ./pics --force                        # re-convert exist
 node convert_images.mjs ./pics --del                          # delete source WebP after success
 ```
 
-### Options
+### Convert options
 
 | Option | Description |
 |---|---|
@@ -579,7 +579,7 @@ node convert_images.mjs ./pics --del                          # delete source We
 | `--del` | Delete the source WebP after successful conversion (⚠ unrecoverable) |
 | `--help` | Show help |
 
-### Notes
+### Convert notes
 
 - **PNG is lossless, so files get much larger** (measured: ~13× WebP). For size, prefer `--format jpeg --quality 90` (measured: ~1.9×)
 - Existing valid outputs are skipped, so re-running is safe
@@ -599,7 +599,7 @@ node image_viewer.mjs ./pics --recursive          # include subfolders
 node image_viewer.mjs ./pics --port 9000          # custom port
 ```
 
-### Options
+### Viewer options
 
 | Option | Description |
 |---|---|
@@ -624,7 +624,7 @@ node image_viewer.mjs ./pics --port 9000          # custom port
 - The 📂 button reveals the current image in Explorer
 - Security: the server binds to `127.0.0.1` only and rejects paths outside the target folder
 
-### Notes
+### Viewer notes
 
 - Rendering happens in your default browser (a tab opens automatically on start)
 - Quit via the "✕ Quit" button in the top-right, or `Ctrl+C` on the server
@@ -696,7 +696,7 @@ node build_exe.mjs --runall # -> dist/eh-runall.exe (run_all all-in-one)
 # or double-click build.bat on Windows
 ```
 
-### Options
+### Build options
 
 | Option | Description |
 |---|---|
