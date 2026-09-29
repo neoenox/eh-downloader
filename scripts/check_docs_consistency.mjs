@@ -235,6 +235,43 @@ function ghSlug(text) {
   return s;
 }
 
+// Markdown ファイルから有効アンカー一覧を作る (見出し + 明示 <a id>)
+// 本文 (コードブロック外) のみを取り出す。
+// ```markdown ブロックは「README に貼る例」の例示であり実リンクではないため、
+// リンク検証の対象から除外する。
+function proseText(text) {
+  const out = [];
+  let inCode = false;
+  for (const line of text.split(/\r?\n/)) {
+    if (line.trim().startsWith("```")) { inCode = !inCode; continue; }
+    if (inCode) continue;
+    out.push(line);
+  }
+  return out.join("\n");
+}
+
+function collectAnchors(text) {
+  const anchors = new Set();
+  let inCode = false;
+  for (const line of text.split(/\r?\n/)) {
+    if (line.trim().startsWith("```")) { inCode = !inCode; continue; }
+    if (inCode) continue;
+    const m = line.match(/^(#{1,6})\s+(.*?)\s*$/);
+    if (m) anchors.add(ghSlug(m[2]));
+  }
+  for (const m of text.matchAll(/<a id="([^"]+)">/g)) anchors.add(m[1]);
+  // GitHub は見出し連番 (-1, -2) も生成するが、参照側は通常ベース名を使う。
+  // 重複時の連番参照はここでは検証しない (重複自体はセクション 6 が検出する)。
+  return anchors;
+}
+
+// Markdown 画像参照 ![..](..) を [](..) と同じ扱いで拾うためのリンク抽出
+function extractLinks(text) {
+  const links = [];
+  for (const m of text.matchAll(/!??\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) links.push(m[1]);
+  return links;
+}
+
 // ---------------------------------------------------------------------------
 // 6. README 見出しの重複検出 (コードブロック内の # を除外)
 // ---------------------------------------------------------------------------
@@ -260,36 +297,57 @@ function ghSlug(text) {
 }
 
 // ---------------------------------------------------------------------------
-// 7. アンカー参照検証 (README 内部 + docs/* からの参照)
+// 7. リンク & アンカー参照検証 (README / docs の相対リンク・ページ内アンカー)
 // ---------------------------------------------------------------------------
 {
-  // 有効アンカー一覧: 見出し + 明示 <a id>
-  const anchors = new Set();
-  const lines = readme.split(/\r?\n/);
-  let inCode = false;
-  for (const line of lines) {
-    if (line.trim().startsWith("```")) { inCode = !inCode; continue; }
-    if (inCode) continue;
-    const m = line.match(/^(#{1,6})\s+(.*?)\s*$/);
-    if (m) anchors.add(ghSlug(m[2]));
+  // 各 Markdown の有効アンカー集合 (見出し + 明示 <a id>)
+  const anchorCache = new Map(); // relPath -> Set<anchor>
+  for (const [name, text] of Object.entries(allDocs)) {
+    if (notesKeys.includes(name)) continue;
+    anchorCache.set(name, collectAnchors(text));
   }
-  for (const m of readme.matchAll(/<a id="([^"]+)">/g)) anchors.add(m[1]);
 
-  let refOk = 0, refFail = 0;
-  const checkRef = (file, anchor) => {
+  let refOk = 0, refFail = 0, linkOk = 0, linkFail = 0;
+  const checkAnchor = (file, targetFile, anchor) => {
     const a = decodeURIComponent(anchor);
-    if (anchors.has(a)) { refOk++; ok(`${file}: README#${a} は有効なアンカーです`); }
-    else { refFail++; fail(`${file}: README#${a} は無効なアンカーです`); }
+    const set = anchorCache.get(targetFile);
+    if (set && set.has(a)) { refOk++; ok(`${file}: ${targetFile}#${a} は有効なアンカーです`); }
+    else { refFail++; fail(`${file}: ${targetFile}#${a} は無効なアンカーです`); }
   };
+
   for (const [name, text] of Object.entries(allDocs)) {
     if (notesKeys.includes(name)) continue; // リリースノートの相対リンクは GitHub 上で別解釈になるため除外
-    for (const m of text.matchAll(/\]\(#([^)\s]+)\)/g)) checkRef(name, m[1]);
-    for (const m of text.matchAll(/\]\((?:\.\.\/)?README\.md#([^)\s]+)\)/g)) checkRef(name, m[1]);
+    for (const raw of extractLinks(proseText(text))) {
+      const link = raw.trim();
+      if (!link) continue;
+      if (link.startsWith("#")) { checkAnchor(name, name, link.slice(1)); continue; } // ページ内アンカー
+      if (/^(https?:|mailto:|data:)/i.test(link)) continue; // 外部リンクは対象外
+
+      const hashIdx = link.indexOf("#");
+      const targetPart = hashIdx >= 0 ? link.slice(0, hashIdx) : link;
+      const anchorPart = hashIdx >= 0 ? link.slice(hashIdx + 1) : null;
+      if (!targetPart) continue;
+
+      // ファイル存在チェック (画像・md・その他すべて)
+      const resolved = path.resolve(path.dirname(path.join(rootDir, name)), targetPart);
+      if (fs.existsSync(resolved)) {
+        linkOk++;
+      } else {
+        linkFail++;
+        fail(`${name}: リンク先 ${path.relative(rootDir, resolved).split(path.sep).join("/")} が存在しません`);
+      }
+      // .md へのアンカー付き参照はアンカーも検証
+      if (anchorPart && /.(md|markdown)$/i.test(targetPart)) {
+        const rel = path.relative(rootDir, resolved).split(path.sep).join("/");
+        if (anchorCache.has(rel)) checkAnchor(name, rel, anchorPart);
+      }
+    }
   }
-  if (refOk + refFail === 0) console.log("(アンカー参照なし)");
+  if (linkOk > 0 && linkFail === 0) ok(`相対リンク ${linkOk} 件すべて存在します`);
+  if (refOk === 0 && refFail === 0 && linkOk === 0 && linkFail === 0) console.log("(リンク・アンカー参照なし)");
 }
 
-// ---------------------------------------------------------------------------
+
 // 結果
 // ---------------------------------------------------------------------------
 console.log(`\n=== 結果: ${checks} ok / ${failures} fail ===`);
