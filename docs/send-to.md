@@ -82,7 +82,7 @@ E:\tools\eh-downloader\run_all.bat --format jpeg --del
 <a id="english"></a>
 # Using run_all.bat via "Send to" menu / drag & drop (English)
 
-Dropping a folder onto `run_all.bat` runs **WebP → PNG/JPEG conversion and opens the viewer** automatically.
+Dropping a folder onto `run_all.bat` runs **WebP → PNG/JPEG conversion and opens the viewer** automatically. This guide covers how to register it in the Windows "Send to" menu and how to use drag & drop.
 
 > **How it works**: when `run_all.mjs` receives folder path(s) without any URL, it switches to the "convert + view" mode (equivalent to `--from`). With a URL it behaves as before (download → convert → view), so one bat file covers both workflows.
 
@@ -102,6 +102,8 @@ Dropping a folder onto `run_all.bat` runs **WebP → PNG/JPEG conversion and ope
 - Nested subfolders are searched automatically
 
 ## Method 2: Register in the "Send to" menu
+
+Once registered, converting + viewing a folder is right-click → **Send to** → **run_all**.
 
 1. Press `Win + R`, type `shell:sendto`, press Enter (the SendTo folder opens)
 2. Right-click `run_all.bat` → **Create shortcut**
@@ -127,6 +129,8 @@ E:\tools\eh-downloader\run_all.bat --format jpeg --del
 | `--del` | Delete source WebP after conversion (⚠ unrecoverable) |
 | `--force` | Re-convert already converted images |
 | `--open-only` | Only open the viewer (no conversion) |
+
+> "Send to" also supports sending **multiple folders at once**: multi-select in Explorer, right-click → Send to, and all of them are processed.
 
 ## Method 3: Desktop shortcut
 

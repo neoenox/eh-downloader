@@ -139,6 +139,9 @@ download → convert → view with **no Node.js install**. Lead with that.
 
 ### Pattern A: keep GitHub's auto-generated image (no change needed)
 
+Even without any setup, GitHub generates an image from the repository name and
+language breakdown. That is good enough to start with.
+
 ### Pattern B: template services (5 min, free)
 
 - [Socialify](https://socialify.git.fi/neoenox/eh-downloader/image?description=1&language=1&logo=1&name=1&owner=1&pattern=Diagonal%20Stripes&theme=Light)

@@ -29,7 +29,7 @@ README のクイックスタート (方法 A) と同じ順序で撮ると、GIF 
 同じ操作を再現できます:
 
 1. **Releases からダウンロード** — ブラウザで `eh-runall-windows-x64.exe` +
-   `SHA256SUMS-windows-x64.txt` をダウンロードした画面を一瞬見せる (タイムラプス可)
+   `SHA256SUMS-windows.txt` をダウンロードした画面を一瞬見せる (タイムラプス可)
 2. **改ざん検証** — `verify_checksums.bat` をダブルクリック → PowerShell ウィンドウに
    `OK` (全ファイル一致) と表示されるところを止めて見せる
 3. **実行** — `eh-runall.exe` をダブルクリック → アイコン (青い DL バッジ付き) が見える
@@ -191,7 +191,7 @@ it shows the exact verify-then-run sequence from the quick start.
 ## Demo #1 script (quick start scenario)
 
 1. **Download from Releases** — briefly show the browser downloading
-   `eh-runall-windows-x64.exe` + `SHA256SUMS-windows-x64.txt`
+   `eh-runall-windows-x64.exe` + `SHA256SUMS-windows.txt`
 2. **Tamper check** — double-click `verify_checksums.bat` → show the PowerShell
    `OK` result for a second or two
 3. **Run** — double-click `eh-runall.exe` (make the blue download-badge icon
@@ -201,11 +201,22 @@ it shows the exact verify-then-run sequence from the quick start.
 
 ## Recording on Windows
 
-- **Quick**: Xbox Game Bar (`Win + Alt + R`), mp4 saved to `Videos > Captures`
-- **Polished**: OBS Studio at 1280×720, capture only the terminal window,
-  use a 14–16pt monospace font
+- **Quick**: Xbox Game Bar (`Win + G` → record, or `Win + Alt + R`), mp4 saved
+  to `Videos > Captures`
+- **Polished**: OBS Studio at 1280×720, capture only the terminal window
+  ("Sources > Window Capture"), use a 14–16pt monospace font. For demo #1,
+  switch the capture to the browser or record the whole display in one take
+- Terminal prep for a clean look:
+
+  ```bat
+  rem black background / resize the window to reduce margins
+  color 0a
+  mode con: cols=110 lines=35
+  ```
+
 - Prepare the URL in the clipboard in advance and record a small gallery so
-  progress is visible
+  progress is visible (the `--delay 1.2` 509 countermeasure makes big galleries
+  look slow)
 - The exe ships with an embedded icon and version resource (FileVersion 1.2.1,
   "E-Hentai All-in-One (DL / Convert / View)") — let it show in the taskbar
 
@@ -215,14 +226,26 @@ it shows the exact verify-then-run sequence from the quick start.
 ffmpeg -i demo.mp4 -vf "fps=12,scale=800:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" demo.gif
 ```
 
-- fps **12**, width **800px**, target **< 3 MB** per GIF (up to 4 MB for #1)
+| Setting | Recommended | Why |
+|---|---|---|
+| fps | **12** | smooth enough for terminal text |
+| Width | **800px** | fits GitHub's body width |
+| Size | **< 3 MB** per GIF (up to 4 MB for #1) | keeps GitHub rendering fast |
+
+To shrink further:
+- [gifsicle](https://eternallybored.org/misc/gifsicle/): `gifsicle -O3 --lossy=80 -o out.gif in.gif`
 - Or embed **mp4 directly** — GitHub autoplays `<video>` tags and they are 5–10×
   smaller than GIF
 
 ## Placement in the repo
 
 ```
-docs/demo-quickstart.gif, docs/demo-runall.gif, docs/demo-sendto.gif, docs/demo-convert.gif
+docs/
+  demo-quickstart.gif   <- #1 single-exe quick start (main)
+  demo-runall.gif       <- #2 one-command run_all
+  demo-sendto.gif       <- #3 D&D / Send-to
+  demo-convert.gif      <- #4 conversion
+assets/                 <- source mp4s (optional, for release notes)
 ```
 
 Reference with relative paths (no external hosting):
@@ -231,4 +254,41 @@ Reference with relative paths (no external hosting):
 ![Quick start demo](docs/demo-quickstart.gif)
 ```
 
-Reuse the same GIF in both language sections, translating only the captions.
+## Embedding into the README
+
+```markdown
+**Option A: use the single exe (recommended — nothing to install)**
+
+![Quick start demo](docs/demo-quickstart.gif)
+*Download → verify checksum → double-click: DL, convert & view in one go*
+
+...(quick start bullets)
+```
+
+```markdown
+**One command for everything:** `run_all.bat <URL>` downloads, converts and
+opens the viewer automatically.
+
+![One-command run_all demo](docs/demo-runall.gif)
+*`eh-runall.exe <URL>` — DL, convert & view in one command (no Node.js)*
+```
+
+```markdown
+## 2. Convert: `convert_images.mjs`
+
+![WebP to JPEG batch conversion demo](docs/demo-convert.gif)
+*convert_images.mjs converting WebP → JPEG (quality 90)*
+```
+
+> Reuse the same GIF in both language sections, translating only the captions.
+
+## Checklist
+
+- [ ] Resize the terminal / enlarge the font before recording (`mode con: cols=110 lines=35`)
+- [ ] Demo #1 keeps the order "verify OK → run → browser view" (same as the README)
+- [ ] Preferably show the exe icon (blue DL badge) and FileVersion on screen
+- [ ] Record a small gallery so progress is visible (no artificial delays)
+- [ ] Check that no personal info (cookies, username, full download paths) is on screen
+- [ ] Convert at fps=12 / 800px wide, under 3 MB (4 MB for #1)
+- [ ] Embed in both README language sections with captions
+- [ ] Check readability at mobile width (~375px)
