@@ -358,6 +358,7 @@ eh-runall.exe --open-only "3553112_gallery title"
 | `--port N` / `--recursive` / `--no-open` / `--window-size WxH` | ビューワーに渡すオプション |
 | `--no-color` | 進捗表示を色なしにする (非TTY・`NO_COLOR` では自動で色なし) |
 | `--verbose` | 子スクリプトの全出力をそのまま表示 (デフォルトは1行進捗に凝縮) |
+| `--no-update-check` | 起動時の更新チェックを無効化 (GitHub API を叩かない。オフライン環境向け) |
 | `-- <args>` | 以降を `eh_download.mjs` にそのまま渡す (`--parallel 3` など) |
 
 ダウンロードで一部失敗した場合も変換・閲覧は続行し、終了コード `2` で報告します。
@@ -427,7 +428,8 @@ v1.3.0 で達成: docs 整合性チェッカーの CI 組み込み、README/docs
 - [ ] **署名付きバイナリ** — Sigstore (cosign) などでリリースバイナリに署名し、SHA-256 に加えて署名検証を提供
 - [ ] **macOS の Gatekeeper 対策の軽減** — 署名/notarization による `xattr` コマンド不要化
 - [ ] **winget / Homebrew 対応** — パッケージマネージャからのインストール
-- [ ] **自動更新チェッカー** — `eh-runall --version` の結果を GitHub API と突き合わせ、新しいリリースを通知 (自動 DL はしない)
+- [x] **自動更新チェッカー** — 実行時に GitHub Releases と照合し、新しいリリースがあれば通知 (自動 DL はしない。`--no-update-check` で無効化)
+- [ ] **更新通知のサイレント化 / 間隔制御** — 更新チェック結果のキャッシュと頻度制御 (現在は毎回問い合わせ)
 
 ### 安定性・保守
 
@@ -807,6 +809,7 @@ eh-runall.exe --open-only "3553112_gallery title"
 | `--port N` / `--recursive` / `--no-open` / `--window-size WxH` | Passed to the viewer |
 | `--no-color` | Disable colored progress (automatic on non-TTY / with `NO_COLOR`) |
 | `--verbose` | Stream the child scripts' full output (default condenses it into one-line progress) |
+| `--no-update-check` | Disable the startup update check (no GitHub API call; useful offline) |
 | `-- <args>` | Anything after `--` goes to `eh_download.mjs` verbatim (`--parallel 3`, etc.) |
 
 If some downloads fail, conversion and viewing still proceed and the exit code is `2`.
@@ -878,7 +881,8 @@ and this public roadmap itself.
 - [ ] **Signed binaries** — sign release binaries with Sigstore (cosign) to offer signature verification in addition to SHA-256
 - [ ] **Less macOS Gatekeeper friction** — signing / notarization to remove the `xattr` workaround
 - [ ] **winget / Homebrew support** — install via package managers
-- [ ] **Update checker** — compare `eh-runall --version` against the GitHub API and notify about newer releases (no auto-download)
+- [x] **Update checker** — compares the running version against GitHub Releases and notifies about newer releases (no auto-download; disable with `--no-update-check`)
+- [ ] **Update-notice caching / throttling** — cache check results and rate-limit queries (currently checks on every run)
 
 ### Stability & maintenance
 

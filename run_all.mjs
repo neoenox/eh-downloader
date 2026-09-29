@@ -23,7 +23,8 @@
 //   --no-open          ビューワー用にブラウザを自動で開かない
 //   --no-color         進捗表示を色なしにする
 //   --verbose          子スクリプトの全出力をそのまま表示 (デフォルトは1行進捗に凝縮)
-//   -- <args>          以降を eh_download.mjs にそのまま渡す (--parallel, --cookie, --original など)
+//   --no-update-check  起動時の更新チェックを無効化 (GitHub API を叩かない)
+//   -- <args>          以降を eh_download.mjs にそのまま渡す (--parallel, --cookie, --timeout, --retries など)
 //
 // 終了コード: 0=成功 / 1=致命的エラー / 2=ダウンロードに一部失敗 (failed_urls.txt に書き出し)
 
@@ -34,6 +35,7 @@ import readline from "node:readline";
 import { spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { checkForUpdate, formatUpdateNotice } from "./scripts/check_update.mjs";
 
 // SEA (単一exe) では import.meta.url が空になるためフォールバックする。
 // rootDir は子スクリプトの spawn にのみ使う (SEA では子プロセスを使わないので未使用)。
@@ -81,7 +83,7 @@ function parseArgs(argv) {
     urls: [], from: null, out: ".", format: "png", quality: 90,
     del: false, force: false, convert: true, view: true, openOnly: false,
     port: null, recursive: false, open: true, passThrough: [],
-    noColor: false, verbose: false, fromDirs: [], windowSize: null,
+    noColor: false, verbose: false, fromDirs: [], windowSize: null, updateCheck: true,
   };
   let i = 0;
   let noMoreFlags = false;
@@ -106,6 +108,7 @@ function parseArgs(argv) {
     else if (a === "--no-open") opts.open = false;
     else if (a === "--no-color") opts.noColor = true;
     else if (a === "--verbose") opts.verbose = true;
+    else if (a === "--no-update-check") opts.updateCheck = false;
     else if (a === "--view=false") opts.view = false;
     else if (a === "--view") opts.view = true;
     else if (a === "--open") opts.open = true;
@@ -120,7 +123,7 @@ function parseArgs(argv) {
 let opts = {
   urls: [], from: null, out: ".", format: "png", quality: 90,
   del: false, force: false, convert: true, view: true, openOnly: false,    port: null, recursive: false, open: true, passThrough: [],
-    noColor: false, verbose: false, fromDirs: [], windowSize: null,
+    noColor: false, verbose: false, fromDirs: [], windowSize: null, updateCheck: true,
 };
 const useColor = (() => {
   if (process.argv.slice(2).includes("--no-color")) return false;
@@ -547,6 +550,18 @@ async function main(argv = process.argv.slice(2)) {
 
   // ダウンロードで一部失敗があった場合は終了コード 2 で報告する
   if (dl.code === 2) process.exitCode = 2;
+
+  // --- 更新チェック (非同期・本線を阻害しない / 失敗時は静かに無視) ---
+  // SEA (単一exe) では process.execPath 自身がバンドルであり scripts/ を持たないため
+  // dev 環境 (node 実行) でのみ動的に import する。
+  if (opts.updateCheck && !isSea && !isEmbedded) {
+    const cur = globalThis.EH_VIEWER_VERSION || null;
+    if (cur && /^v?\d+\.\d+\.\d+$/i.test(cur)) {
+      checkForUpdate(cur)
+        .then((info) => { if (info) printLine(yellow(formatUpdateNotice(info))); })
+        .catch(() => {});
+    }
+  }
 }
 
 // 直接実行時のみ自動起動 (単一exeからは run_all_sea_entry が runAll(argv) を明示呼び出しする)。

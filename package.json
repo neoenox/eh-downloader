@@ -5,7 +5,7 @@
   "description": "E-Hentai gallery downloader, converter and image viewer",
   "license": "MIT",
   "scripts": {
-    "test": "node test_eh_download.mjs && node test_image_viewer.mjs && node test_run_all.mjs",
+    "test": "node test_eh_download.mjs && node test_image_viewer.mjs && node test_run_all.mjs && node test_check_update.mjs",
     "check:docs": "node scripts/check_docs_consistency.mjs",
     "build:exe": "node build_exe.mjs"
   },
