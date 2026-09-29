@@ -21,6 +21,7 @@
 ## よく使うリンク
 
 - [Releases (最新版ダウンロード)](https://github.com/neoenox/eh-downloader/releases/latest)
+- [更新履歴 (CHANGELOG)](../CHANGELOG.md)
 - [Issues](https://github.com/neoenox/eh-downloader/issues)
 - [CI (GitHub Actions)](https://github.com/neoenox/eh-downloader/actions/workflows/ci.yml)
 

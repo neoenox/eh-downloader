@@ -6,7 +6,7 @@
 [![Node.js](https://img.shields.io/badge/node-%E2%89%A518-339933.svg?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Issues](https://img.shields.io/github/issues/neoenox/eh-downloader?style=flat-square&label=issues)](https://github.com/neoenox/eh-downloader/issues)
 
-**日本語** | [English](#english) | [「送る」メニュー登録ガイド](docs/send-to.md) | [Social preview 設定ガイド](docs/social-preview.md) | [GIF デモ構成案](docs/gif-demo.md) | [📖 ドキュメント一覧](docs/index.md)
+**日本語** | [English](#english) | [「送る」メニュー登録ガイド](docs/send-to.md) | [Social preview 設定ガイド](docs/social-preview.md) | [GIF デモ構成案](docs/gif-demo.md) | [📖 ドキュメント一覧](docs/index.md) | [更新履歴](CHANGELOG.md)
 
 E-Hentai のギャラリー画像を一括ダウンロードし、WebP → PNG/JPEG に一括変換し、ブラウザで閲覧できる Node.js スクリプト集です。
 
@@ -467,7 +467,7 @@ v1.3.0 で達成: docs 整合性チェッカーの CI 組み込み、README/docs
 [![Node.js](https://img.shields.io/badge/node-%E2%89%A518-339933.svg?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Issues](https://img.shields.io/github/issues/neoenox/eh-downloader?style=flat-square&label=issues)](https://github.com/neoenox/eh-downloader/issues)
 
-**English** | [日本語](#e-hentai-ダウンロード画像変換ツール) | [Send-to menu guide](docs/send-to.md) | [Social preview guide](docs/social-preview.md) | [GIF demo proposal](docs/gif-demo.md) | [📖 Documentation index](docs/index.md)
+**English** | [日本語](#e-hentai-ダウンロード画像変換ツール) | [Send-to menu guide](docs/send-to.md) | [Social preview guide](docs/social-preview.md) | [GIF demo proposal](docs/gif-demo.md) | [📖 Documentation index](docs/index.md) | [Changelog](CHANGELOG.md)
 
 A set of Node.js scripts to batch-download E-Hentai galleries, convert the downloaded WebP images to PNG/JPEG, and view them in your browser.
 
