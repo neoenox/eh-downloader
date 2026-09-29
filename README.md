@@ -196,6 +196,7 @@ node image_viewer.mjs ./pics --port 9000          # ポート指定
 | `--no-open` | ブラウザを自動で開かない |
 | `--no-thumbs` | サムネイル生成を無効化（元画像を直接表示） |
 | `--thumb-size N` | サムネイルの長辺サイズ（デフォルト: 400、16-2048） |
+| `--window-size WxH` | Windows 専用: Edge アプリモードの初期ウィンドウサイズ（例: `1280x860`。デフォルト: 1280×860） |
 | `--help` (`-h`) | ヘルプ表示 |
 
 ### 主な機能
@@ -216,7 +217,7 @@ node image_viewer.mjs ./pics --port 9000          # ポート指定
 
 - 表示にはブラウザ画面を使用します。Windows では Edge のアプリモードで**アドレスバー無しの専用ウィンドウ**として開きます（Edge 未インストールの場合は既定のブラウザで開きます）
   - ウィンドウタイトル: `Image Viewer`
-  - 初期ウィンドウサイズ: 1280×860（通常のアプリと同様にリサイズ・最大化できます）
+  - 初期ウィンドウサイズ: 1280×860（`--window-size WxH` で変更可能。通常のアプリと同様にリサイズ・最大化できます）
 - 終了は画面右上の「✕ 終了」ボタン、またはサーバー側で `Ctrl+C`
 
 ---
@@ -352,7 +353,7 @@ eh-runall.exe --open-only "3553112_gallery title"
 | `--no-convert` | 変換せずダウンロードのみ |
 | `--no-view` | ビューワーを起動せず終了 |
 | `--open-only` | ダウンロード/変換なしでビューワーだけ起動 |
-| `--port N` / `--recursive` / `--no-open` | ビューワーに渡すオプション |
+| `--port N` / `--recursive` / `--no-open` / `--window-size WxH` | ビューワーに渡すオプション |
 | `--no-color` | 進捗表示を色なしにする (非TTY・`NO_COLOR` では自動で色なし) |
 | `--verbose` | 子スクリプトの全出力をそのまま表示 (デフォルトは1行進捗に凝縮) |
 | `-- <args>` | 以降を `eh_download.mjs` にそのまま渡す (`--parallel 3` など) |
@@ -639,6 +640,7 @@ node image_viewer.mjs ./pics --port 9000          # custom port
 | `--no-open` | Do not open the browser automatically |
 | `--no-thumbs` | Disable thumbnail generation (serve original images) |
 | `--thumb-size N` | Thumbnail long-edge size (default: 400, 16–2048) |
+| `--window-size WxH` | Windows only: initial app-mode window size (e.g. `1280x860`; default 1280×860) |
 | `--help` (`-h`) | Show help |
 
 ### Features
@@ -659,7 +661,7 @@ node image_viewer.mjs ./pics --port 9000          # custom port
 
 - Rendering happens in a browser view. On Windows the viewer opens as a **standalone app-mode window without an address bar** (via Microsoft Edge; falls back to your default browser if Edge is unavailable)
   - Window title: `Image Viewer`
-  - Initial window size: 1280×860 (resizable / maximizable like any regular app)
+  - Initial window size: 1280×860 (changeable via `--window-size WxH`; resizable / maximizable like any regular app)
 - Quit via the "✕ Quit" button in the top-right, or `Ctrl+C` on the server
 
 ---
@@ -793,7 +795,7 @@ eh-runall.exe --open-only "3553112_gallery title"
 | `--no-convert` | Download only, no conversion |
 | `--no-view` | Do not start the viewer |
 | `--open-only` | Start the viewer only (no download/convert) |
-| `--port N` / `--recursive` / `--no-open` | Passed to the viewer |
+| `--port N` / `--recursive` / `--no-open` / `--window-size WxH` | Passed to the viewer |
 | `--no-color` | Disable colored progress (automatic on non-TTY / with `NO_COLOR`) |
 | `--verbose` | Stream the child scripts' full output (default condenses it into one-line progress) |
 | `-- <args>` | Anything after `--` goes to `eh_download.mjs` verbatim (`--parallel 3`, etc.) |

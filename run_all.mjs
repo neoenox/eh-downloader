@@ -19,6 +19,7 @@
 //   --open-only        ダウンロード/変換を行わずビューワーだけ起動
 //   --port N           ビューワーのポート (デフォルト: 自動)
 //   --recursive        ビューワーでサブフォルダもまとめて表示
+//   --window-size WxH  ビューワーの初期ウィンドウサイズ (Windows は Edge アプリモード。例: 1280x860)
 //   --no-open          ビューワー用にブラウザを自動で開かない
 //   --no-color         進捗表示を色なしにする
 //   --verbose          子スクリプトの全出力をそのまま表示 (デフォルトは1行進捗に凝縮)
@@ -80,7 +81,7 @@ function parseArgs(argv) {
     urls: [], from: null, out: ".", format: "png", quality: 90,
     del: false, force: false, convert: true, view: true, openOnly: false,
     port: null, recursive: false, open: true, passThrough: [],
-    noColor: false, verbose: false, fromDirs: [],
+    noColor: false, verbose: false, fromDirs: [], windowSize: null,
   };
   let i = 0;
   let noMoreFlags = false;
@@ -100,6 +101,7 @@ function parseArgs(argv) {
     else if (a === "--no-view") opts.view = false;
     else if (a === "--open-only") opts.openOnly = true;
     else if (a === "--port") opts.port = parseInt(argv[++i], 10);
+    else if (a === "--window-size") opts.windowSize = argv[++i];
     else if (a === "--recursive") opts.recursive = true;
     else if (a === "--no-open") opts.open = false;
     else if (a === "--no-color") opts.noColor = true;
@@ -117,9 +119,8 @@ function parseArgs(argv) {
 // --no-color が渡されたかどうかは引数を軽く走査して判定する (opts は main() 内で生成)。
 let opts = {
   urls: [], from: null, out: ".", format: "png", quality: 90,
-  del: false, force: false, convert: true, view: true, openOnly: false,
-  port: null, recursive: false, open: true, passThrough: [],
-  noColor: false, verbose: false, fromDirs: [],
+  del: false, force: false, convert: true, view: true, openOnly: false,    port: null, recursive: false, open: true, passThrough: [],
+    noColor: false, verbose: false, fromDirs: [], windowSize: null,
 };
 const useColor = (() => {
   if (process.argv.slice(2).includes("--no-color")) return false;
@@ -238,6 +239,7 @@ async function openViewer(dirs) {
   if (opts.port) args.push("--port", String(opts.port));
   if (opts.recursive) args.push("--recursive");
   if (!opts.open) args.push("--no-open");
+  if (opts.windowSize) args.push("--window-size", String(opts.windowSize));
 
   if (libViewer) {
     // 埋め込みモード (単一exe): ビューワーを別プロセスとして起動する必要がある。

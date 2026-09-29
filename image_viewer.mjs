@@ -53,7 +53,7 @@ const collator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" })
 const natCmp = (a, b) => collator.compare(a, b);
 
 function parseArgs(argv) {
-  const opts = { dir: ".", port: 8420, recursive: false, open: true, help: false, version: false, thumbs: true, thumbSize: THUMB_DEFAULT_SIZE };
+  const opts = { dir: ".", port: 8420, recursive: false, open: true, help: false, version: false, thumbs: true, thumbSize: THUMB_DEFAULT_SIZE, windowSize: null };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -64,6 +64,7 @@ function parseArgs(argv) {
     else if (a === "--no-open") opts.open = false;
     else if (a === "--no-thumbs") opts.thumbs = false;
     else if (a === "--thumb-size") opts.thumbSize = parseInt(argv[++i], 10);
+    else if (a === "--window-size") opts.windowSize = argv[++i];
     else if (a.startsWith("--")) { console.error(`不明なオプション: ${a} (--help を参照)`); process.exit(1); }
     else rest.push(a);
   }
@@ -75,6 +76,14 @@ function parseArgs(argv) {
   if (!Number.isInteger(opts.thumbSize) || opts.thumbSize < 16 || opts.thumbSize > 2048) {
     console.error("[ERROR] --thumb-size には 16-2048 の数値を指定してください");
     process.exit(1);
+  }
+  if (opts.windowSize != null) {
+    const m = /^(\d+)[xX*](\d+)$/.exec(String(opts.windowSize).trim());
+    if (!m || +m[1] < 200 || +m[1] > 7680 || +m[2] < 200 || +m[2] > 4320) {
+      console.error("[ERROR] --window-size には 幅x高さ (例: 1280x860、各 200-7680 / 200-4320) を指定してください");
+      process.exit(1);
+    }
+    opts.windowSize = { w: +m[1], h: +m[2] };
   }
   return opts;
 }
@@ -95,6 +104,7 @@ sharp があれば一覧を高速表示するサムネイルを自動生成す�
   --no-open             ブラウザを自動で開かない
   --no-thumbs           サムネイル生成を無効化 (元画像を直接表示)
   --thumb-size N        サムネイルの長辺サイズ (デフォルト: 400、16-2048)
+  --window-size WxH     Windows 専用: Edge アプリモードの初期ウィンドウサイズ (例: 1280x860)。デフォルトは 1280x860
   --help, -h            このヘルプを表示
 
 操作キー (ブラウザ内):
@@ -298,7 +308,7 @@ function openInExplorer(target, select) {
   }
 }
 
-function openBrowser(url) {
+function openBrowser(url, windowSize = null) {
   try {
     if (process.platform === "win32") {
       // Edge の --app モードを優先: アドレスバー無しの専用ウィンドウで開く (ネイティブアプリ風)。
@@ -311,7 +321,8 @@ function openBrowser(url) {
       const edge = edgeCandidates.find((p) => { try { return fs.existsSync(p); } catch { return false; } });
       if (edge) {
         // --app ウィンドウは Edge プロセスが生きている間だけ開くため detached で起動する
-        spawn(edge, ["--app=" + url, "--window-size=1280,860"], { detached: true, stdio: "ignore" }).on("error", () => {}).unref();
+        const sz = windowSize ? `--window-size=${windowSize.w},${windowSize.h}` : "--window-size=1280,860";
+        spawn(edge, ["--app=" + url, sz], { detached: true, stdio: "ignore" }).on("error", () => {}).unref();
         return;
       }
       exec(`start "" "${url}"`);
@@ -948,7 +959,7 @@ async function main(argv = process.argv.slice(2)) {
   console.log("フォルダ: " + baseDir + (opts.recursive ? " (サブフォルダも含む)" : ""));
   console.log("終了: 画面右上の「✕ 終了」ボタン または Ctrl+C");
 
-  if (opts.open) openBrowser(url);
+  if (opts.open) openBrowser(url, opts.windowSize);
 
   const shutdown = () => {
     try { if (typeof server.closeAllConnections === "function") server.closeAllConnections(); } catch { /* ignore */ }
