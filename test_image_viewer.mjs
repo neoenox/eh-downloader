@@ -4,6 +4,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import http from "node:http";
+import net from "node:net";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -243,6 +245,78 @@ if (sharp) {
 
   await fetch(base + "/api/quit");
   check("fallback: server exits cleanly", (await waitExit(child)) === 0);
+}
+
+// ================== ✕終了ボタンの動作検証 ==================
+// UI (quitApp) が実際に行う「fetch /api/quit → サーバー終了」フローを、
+// 実際の起動形態ごとに検証する:
+//   1. 通常起動: fetch 完了後にプロセスが code 0 で終わる (既に上で検証済みだがここでは
+//      「keep-alive 接続が残っていても終了する」ことを開いている接続ありで再確認)
+//   2. detached spawn (run_all と同じ起動方法) でも子プロセスが確実に落ちる
+//      (ゾンビサーバーが残らない)
+{
+  // --- 1. 接続を開いたまま /api/quit → code 0 で終了 (closeAllConnections の検証) ---
+  {
+    const { child, ready } = startServer();
+    const port = await ready;
+    const base = "http://localhost:" + port;
+
+    // keep-alive エージェントで接続を開いたまま維持する (✕終了時のブラウザ相当)
+    const keepalive = new http.Agent({ keepAlive: true, maxSockets: 1 });
+    const openConn = () => new Promise((resolve, reject) => {
+      const req = http.request(base + "/api/list", { agent: keepalive }, (res) => {
+        res.resume();
+        res.on("end", resolve);
+      });
+      req.on("error", reject);
+      req.end();
+    });
+    await openConn();
+
+    const q = await fetch(base + "/api/quit");
+    eq("quit w/ open connection: ok json", await q.json(), { ok: true });
+    const code = await waitExit(child);
+    check("quit w/ open connection: server exits code 0", code === 0, { code });
+    keepalive.destroy();
+  }
+
+  // --- 2. detached spawn (run_all と同じ起動方法) でも /api/quit で落ちる ---
+  {
+    const child = spawn(process.execPath, [VIEWER, tmp, "--no-open", "--port", "0"], {
+      cwd: rootDir,
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: true, // run_all.mjs の openViewer と同じ起動方法
+    });
+    child.unref();
+    let stdout = "";
+    child.stdout.on("data", (d) => (stdout += d));
+    const port = await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error("detached server timeout\n" + stdout)), 15000);
+      child.stdout.on("data", (d) => {
+        const m = String(d).match(/localhost:(\d+)/);
+        if (m) { clearTimeout(t); resolve(parseInt(m[1], 10)); }
+      });
+    });
+    const base = "http://localhost:" + port;
+
+    // ビューワー UI と同じ: fetch /api/quit を叩く (UI は confirm 後にこれだけを行う)
+    const q = await fetch(base + "/api/quit");
+    eq("detached quit: ok json", await q.json(), { ok: true });
+    const code = await waitExit(child);
+    check("detached quit: server exits code 0 (no zombie)", code === 0, { code });
+
+    // ポートが閉じていること (ゾンビサーバーが残っていない)
+    await new Promise((r) => setTimeout(r, 300));
+    // 接続試行が失敗する (= ポートが閉じている) ことを確認
+    const portFree = await new Promise((resolve) => {
+      const s = net.connect({ host: "127.0.0.1", port });
+      const done = (v) => { try { s.destroy(); } catch { /* ignore */ } resolve(v); };
+      s.on("connect", () => done(false));
+      s.on("error", () => done(true));
+      setTimeout(() => done(true), 2000).unref();
+    });
+    check("detached quit: port closed after exit", portFree, { port });
+  }
 }
 
 console.log(fails === 0 ? "\nAll tests passed." : `\n${fails} test(s) failed.`);
