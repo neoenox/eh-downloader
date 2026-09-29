@@ -215,6 +215,8 @@ node image_viewer.mjs ./pics --port 9000          # ポート指定
 ### 注意
 
 - 表示にはブラウザ画面を使用します。Windows では Edge のアプリモードで**アドレスバー無しの専用ウィンドウ**として開きます（Edge 未インストールの場合は既定のブラウザで開きます）
+  - ウィンドウタイトル: `Image Viewer`
+  - 初期ウィンドウサイズ: 1280×860（通常のアプリと同様にリサイズ・最大化できます）
 - 終了は画面右上の「✕ 終了」ボタン、またはサーバー側で `Ctrl+C`
 
 ---
@@ -656,6 +658,8 @@ node image_viewer.mjs ./pics --port 9000          # custom port
 ### Viewer notes
 
 - Rendering happens in a browser view. On Windows the viewer opens as a **standalone app-mode window without an address bar** (via Microsoft Edge; falls back to your default browser if Edge is unavailable)
+  - Window title: `Image Viewer`
+  - Initial window size: 1280×860 (resizable / maximizable like any regular app)
 - Quit via the "✕ Quit" button in the top-right, or `Ctrl+C` on the server
 
 ---
