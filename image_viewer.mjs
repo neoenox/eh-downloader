@@ -206,6 +206,8 @@ async function buildSearchIndex(baseAbs) {
           title: String(meta.title || e.name),
           category: String(meta.category || ""),
           tags: meta.tags && typeof meta.tags === "object" ? meta.tags : {},
+          uploadedAt: String(meta.uploadedAt || ""),
+          rating: parseFloat(meta.rating) || null,
           mtimeMs: st.mtimeMs,
         });
       } catch { /* metadata.json なし/壊れ → スキップ */ }
@@ -228,10 +230,18 @@ function invalidateSearchIndex() { searchIndex = null; }
 // クエリに一致するギャラリーを検索する。
 // q: 空白区切りの語。タグ値 / タイトル / カテゴリに部分一致 (大文字小文字を無視)。
 // tag: "namespace:value" 形式 (artist:alice など)。value は部分一致。
-async function searchGalleries(baseAbs, { q = "", tag = "" } = {}) {
+// from / to: 投稿日の範囲フィルタ (YYYY-MM-DD または YYYY/MM/DD、from ≤ uploadedAt ≤ to)。
+// minRating: 評価の下限 (例: 4.0 → rating >= 4.0)。
+async function searchGalleries(baseAbs, { q = "", tag = "", from = "", to = "", minRating = null } = {}) {
   const { entries } = await getSearchIndex(baseAbs);
   const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
   const tagTerms = tag.toLowerCase().split(/\s+/).filter(Boolean);
+  // 日付は "YYYY-MM-DD" に正規化して文字列比較 (uploadedAt は "2026-09-26 12:34" 形式)
+  const normDate = (s) => String(s || "").trim().replace(/\//g, "-");
+  const fromD = normDate(from);
+  const toD = normDate(to);
+  const fromOk = /^\d{4}-\d{2}-\d{2}$/.test(fromD);
+  const toOk = /^\d{4}-\d{2}-\d{2}$/.test(toD);
   const out = entries.filter((e) => {
     const flatTags = Object.entries(e.tags).flatMap(([ns, vals]) =>
       (Array.isArray(vals) ? vals : []).map((v) => `${ns}:${String(v).toLowerCase()}`));
@@ -239,9 +249,16 @@ async function searchGalleries(baseAbs, { q = "", tag = "" } = {}) {
       if (!flatTags.some((ft) => ft.includes(t))) return false;
     }
     const hay = [e.title, e.category, ...flatTags].join(" ").toLowerCase();
-    return terms.every((t) => hay.includes(t));
+    if (!terms.every((t) => hay.includes(t))) return false;
+    // 日付範囲 (uploadedAt 先頭 10 文字 = YYYY-MM-DD で比較)
+    const up = e.uploadedAt.slice(0, 10);
+    if (fromOk && (!up || up < fromD)) return false;
+    if (toOk && (!up || up > toD)) return false;
+    // 評価下限
+    if (minRating != null && (e.rating == null || e.rating < minRating)) return false;
+    return true;
   });
-  return out.map((e) => ({ dir: e.dir, title: e.title, category: e.category, tags: e.tags }));
+  return out.map((e) => ({ dir: e.dir, title: e.title, category: e.category, tags: e.tags, uploadedAt: e.uploadedAt, rating: e.rating }));
 }
 
 // 登録済みタグの一覧 (namespace ごとに集計、件数付き)
@@ -373,20 +390,6 @@ async function getThumbnail(baseAbs, absFile, size) {
   return inflight;
 }
 
-function openInExplorer(target, select) {
-  const safeSpawn = (cmd, args) => {
-    // xdg-open 等が存在しない環境でも落ちないようにする
-    spawn(cmd, args, { detached: true, stdio: "ignore" }).on("error", () => {}).unref();
-  };
-  if (process.platform === "win32") {
-    // explorer /select,"path" で対象ファイルを選択状態でフォルダを開く
-    safeSpawn("explorer", [select ? "/select," + target : target]);
-  } else {
-    const opener = process.platform === "darwin" ? "open" : "xdg-open";
-    safeSpawn(opener, [select ? path.dirname(target) : target]);
-  }
-}
-
 function openBrowser(url, windowSize = null) {
   try {
     if (process.platform === "win32") {
@@ -486,30 +489,17 @@ function buildServer(baseDir, recursive, thumbs) {
       if (p === "/api/search") {
         const q = u.searchParams.get("q") || "";
         const tag = u.searchParams.get("tag") || "";
-        const results = await searchGalleries(baseDir, { q, tag });
-        return sendJson(res, { q, tag, count: results.length, results });
+        const from = u.searchParams.get("from") || "";
+        const to = u.searchParams.get("to") || "";
+        const minRatingRaw = u.searchParams.get("minRating");
+        const minRating = minRatingRaw != null && minRatingRaw !== "" ? Math.min(5, Math.max(0, parseFloat(minRatingRaw))) : null;
+        const results = await searchGalleries(baseDir, { q, tag, from, to, minRating });
+        return sendJson(res, { q, tag, from, to, minRating, count: results.length, results });
       }
 
       if (p === "/api/tags") {
         const byNs = await collectTags(baseDir);
         return sendJson(res, { tags: byNs });
-      }
-
-      if (p === "/api/open") {
-        const d = (u.searchParams.get("d") || "").replace(/\\/g, "/");
-        const f = u.searchParams.get("f") || "";
-        const dirAbs = resolveWithin(baseDir, d);
-        if (!dirAbs) return sendError(res, 403, "パスが範囲外です");
-        let target = dirAbs;
-        let select = false;
-        if (f) {
-          const fAbs = resolveWithin(baseDir, path.join(d, f));
-          if (!fAbs) return sendError(res, 403, "パスが範囲外です");
-          target = fAbs;
-          select = true;
-        }
-        openInExplorer(target, select);
-        return sendJson(res, { ok: true });
       }
 
       if (p === "/api/quit") {
@@ -625,6 +615,10 @@ button.on { background: #1d3a5f; border-color: #4a9eff; color: #cfe4ff; }
 .search-row { display: flex; gap: 8px; }
 .search-row input { flex: 1; background: #101014; border: 1px solid #3a3a44; color: #d8d8dc;
   border-radius: 6px; padding: 7px 10px; font-size: 13px; }
+.search-row input[type="date"] { flex: 0 1 150px; color-scheme: dark; }
+.search-row select { background: #101014; border: 1px solid #3a3a44; color: #d8d8dc;
+  border-radius: 6px; padding: 7px 10px; font-size: 13px; }
+.date-sep { color: #9a9aa4; align-self: center; }
 .search-row button { background: #2a3a55; border: 1px solid #4a9eff; color: #cfe4ff;
   border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 13px; }
 #search-close { background: #26262e; border-color: #3a3a44; color: #9a9aa4; }
@@ -656,7 +650,6 @@ button.on { background: #1d3a5f; border-color: #4a9eff; color: #cfe4ff; }
   <button id="btn-rot" title="回転 (r)">回転</button>
   <button id="btn-slide" title="スライドショー (s)">▶ スライド</button>
   <button id="btn-full" title="フルスクリーン (f)">⛶</button>
-  <button id="btn-explorer" title="エクスプローラーで表示">📂</button>
   <button id="btn-help" title="操作ヘルプ (?)">？</button>
   <button id="btn-quit" title="サーバーを終了">✕ 終了</button>
 </header>
@@ -676,6 +669,18 @@ button.on { background: #1d3a5f; border-color: #4a9eff; color: #cfe4ff; }
       <input id="search-tag" type="text" placeholder="タグ (namespace:値) 例: artist:alice">
       <button id="search-go">検索</button>
       <button id="search-close">閉じる</button>
+    </div>
+    <div class="search-row" style="margin-top:8px">
+      <input id="search-from" type="date" title="投稿日 (from)">
+      <span class="date-sep">〜</span>
+      <input id="search-to" type="date" title="投稿日 (to)">
+      <select id="search-rating" title="最低評価">
+        <option value="">評価指定なし</option>
+        <option value="4.5">★ 4.5+</option>
+        <option value="4">★ 4.0+</option>
+        <option value="3.5">★ 3.5+</option>
+        <option value="3">★ 3.0+</option>
+      </select>
     </div>
     <div id="tag-cloud"></div>
   </div>
@@ -973,13 +978,6 @@ function toggleFull() {
   if (document.fullscreenElement) document.exitFullscreen();
   else document.documentElement.requestFullscreen().catch(function () {});
 }
-function openExplorer() {
-  var inViewer = !$('stage').classList.contains('hide');
-  var f = inViewer && state.images[state.idx] ? state.images[state.idx].f : '';
-  fetch('/api/open?d=' + enc(state.cur) + (f ? '&f=' + enc(f) : ''))
-    .then(function () { toast('エクスプローラーで開いています'); })
-    .catch(function () { toast('開けませんでした'); });
-}
 function quitApp() {
   if (!confirm('ビューワー（ローカルサーバー）を終了しますか？')) return;
   fetch('/api/quit').then(function () {
@@ -1018,16 +1016,27 @@ function closeSearch() {
 function runSearch() {
   var q = $('search-input').value.trim();
   var tag = $('search-tag').value.trim();
-  if (!q && !tag) { toast('検索語またはタグを入力してください'); return; }
+  var from = $('search-from').value;
+  var to = $('search-to').value;
+  var minRating = $('search-rating').value;
+  if (!q && !tag && !from && !to && !minRating) { toast('検索条件を入力してください'); return; }
   var qs = [];
   if (q) qs.push('q=' + encodeURIComponent(q));
   if (tag) qs.push('tag=' + encodeURIComponent(tag));
+  if (from) qs.push('from=' + encodeURIComponent(from));
+  if (to) qs.push('to=' + encodeURIComponent(to));
+  if (minRating) qs.push('minRating=' + encodeURIComponent(minRating));
   api('/api/search?' + qs.join('&')).then(function (d) {
     $('search-panel').classList.add('hide');
     var panel = $('search-results');
     var body = $('sr-body');
     body.textContent = '';
-    $('sr-label').textContent = '検索結果: ' + d.count + ' 件' + (q ? ' (語: ' + q + ')' : '') + (tag ? ' (タグ: ' + tag + ')' : '');
+    var conds = [];
+    if (q) conds.push('語: ' + q);
+    if (tag) conds.push('タグ: ' + tag);
+    if (from || to) conds.push('日付: ' + (from || '…') + '〜' + (to || '…'));
+    if (minRating) conds.push('評価: ' + minRating + '+');
+    $('sr-label').textContent = '検索結果: ' + d.count + ' 件' + (conds.length ? ' (' + conds.join(' / ') + ')' : '');
     if (!d.count) {
       var em = document.createElement('div');
       em.className = 'empty';
@@ -1037,7 +1046,10 @@ function runSearch() {
     d.results.forEach(function (r) {
       var b = document.createElement('button');
       var tagCount = Object.values(r.tags).reduce(function (s, a) { return s + a.length; }, 0);
-      b.textContent = '📁 ' + (r.title || r.dir) + (r.category ? '  [' + r.category + ']' : '') + '  (' + tagCount + ' タグ)';
+      var extra = [];
+      if (r.uploadedAt) extra.push(r.uploadedAt.slice(0, 10));
+      if (r.rating != null) extra.push('★' + r.rating);
+      b.textContent = '📁 ' + (r.title || r.dir) + (r.category ? '  [' + r.category + ']' : '') + '  (' + tagCount + ' タグ)' + (extra.length ? '  ' + extra.join(' / ') : '');
       b.title = r.dir;
       b.onclick = function () {
         closeSearch();
@@ -1066,7 +1078,6 @@ $('btn-100').onclick = set100;
 $('btn-rot').onclick = rotate;
 $('btn-slide').onclick = toggleSlide;
 $('btn-full').onclick = toggleFull;
-$('btn-explorer').onclick = openExplorer;
 $('btn-help').onclick = function () { $('help').classList.toggle('hide'); };
 $('help').onclick = function () { $('help').classList.add('hide'); };
 $('btn-quit').onclick = quitApp;

@@ -56,11 +56,15 @@ fs.writeFileSync(path.join(tmp, "10_beta", "c.jpg"), "C");
 fs.writeFileSync(path.join(tmp, "01_alpha", "metadata.json"), JSON.stringify({
   title: "Alpha Collection",
   category: "Doujinshi",
+  uploadedAt: "2026-01-15 12:34",
+  rating: "4.80",
   tags: { artist: ["alice"], character: ["asta"], series: ["honkai star rail"], language: ["japanese"], category: ["Doujinshi"] },
 }));
 fs.writeFileSync(path.join(tmp, "10_beta", "metadata.json"), JSON.stringify({
   title: "Beta Works",
   category: "Manga",
+  uploadedAt: "2025-06-01 09:00",
+  rating: "3.20",
   tags: { artist: ["beta"], language: ["english"], category: ["Manga"] },
 }));
 fs.mkdirSync(path.join(tmp, "empty"));
@@ -141,9 +145,9 @@ function waitExit(child) {
   const esc3 = await fetch(base + "/api/list?d=" + encodeURIComponent("../" + path.basename(outside)));
   check("list: traversal rejected", esc3.status === 403);
 
-  // エクスプローラー API (壊れず JSON を返すこと)
-  const op = await fetch(base + "/api/open?d=" + encodeURIComponent("01_alpha") + "&f=" + encodeURIComponent("a.png"));
-  eq("open: ok json", await op.json(), { ok: true });
+  // エクスプローラー連携は廃止: /api/open は存在しない (404)
+  const op = await fetch(base + "/api/open?d=" + encodeURIComponent("01_alpha"));
+  check("open api removed: 404", op.status === 404, op.status);
 
   // 未知パスは 404
   const nf2 = await fetch(base + "/api/nothing");
@@ -290,6 +294,31 @@ if (sharp) {
   // メタデータなしフォルダは検索対象外 (empty/ には metadata.json がない)
   const j5 = await (await fetch(base + "/api/search?q=" + encodeURIComponent("empty"))).json();
   eq("search: folders without metadata excluded", j5.count, 0);
+
+  // 日付範囲フィルタ
+  const j6 = await (await fetch(base + "/api/search?from=2026-01-01")).json();
+  eq("search: from filter (2026 only)", j6.results.map((r) => r.dir), ["01_alpha"]);
+  const j7 = await (await fetch(base + "/api/search?to=2025-12-31")).json();
+  eq("search: to filter (2025 only)", j7.results.map((r) => r.dir), ["10_beta"]);
+  const j8 = await (await fetch(base + "/api/search?from=2025-01-01&to=2026-12-31")).json();
+  eq("search: from+to range covers both", j8.count, 2);
+  // slash 区切りも受け付ける
+  const j8b = await (await fetch(base + "/api/search?from=2026/01/01")).json();
+  eq("search: slash date accepted", j8b.results.map((r) => r.dir), ["01_alpha"]);
+
+  // 評価下限
+  const j9 = await (await fetch(base + "/api/search?minRating=4")).json();
+  eq("search: minRating 4.0", j9.results.map((r) => r.dir), ["01_alpha"]);
+  const j10 = await (await fetch(base + "/api/search?minRating=3")).json();
+  eq("search: minRating 3.0 covers both", j10.count, 2);
+  const j11 = await (await fetch(base + "/api/search?minRating=4.9")).json();
+  eq("search: minRating above all -> none", j11.count, 0);
+
+  // 組み合わせ: タグ + 日付 + 評価
+  const j12 = await (await fetch(base + "/api/search?tag=" + encodeURIComponent("language:japanese") + "&from=2026-01-01&minRating=4.5")).json();
+  eq("search: tag+date+rating AND", j12.results.map((r) => r.dir), ["01_alpha"]);
+  const j13 = await (await fetch(base + "/api/search?tag=" + encodeURIComponent("language:english") + "&minRating=4"));
+  eq("search: tag+rating no match", (await j13.json()).count, 0);
 
   await fetch(base + "/api/quit");
   check("search: server exits cleanly", (await waitExit(child)) === 0);

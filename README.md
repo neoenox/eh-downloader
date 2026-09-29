@@ -212,11 +212,11 @@ node image_viewer.mjs ./pics --port 9000          # ポート指定
 - サムネイル一覧 + 自然順ソート（`01, 02, …, 10` の順。エクスプローラーと同じ並び）
 - **タグ検索**（`🔍 検索` ボタン / `/` キー）— ダウンロード時に保存した `metadata.json` のタグ (artist / character / series / language) でダウンロード済みコレクションを横断検索
   - タグクラウドからクリックで絞り込み、自由語（タイトル部分一致）との AND 検索に対応
-  - 検索結果からギャラリーへ直接ジャンプ
+  - **投稿日範囲・最低評価での絞り込み**にも対応（検索パネルの日付と評価セレクト）
+  - 検索結果には投稿日と評価も表示され、ギャラリーへ直接ジャンプ
 - ズーム（`Ctrl`+ホイール / `-` `+` `0`）/ 回転（`r`）/ ドラッグでパン / フィット ⇄ 100%（ダブルクリック）
 - スライドショー（`s`・4秒間隔・ループ）/ フルスクリーン（`f`）
 - 前・次のフォルダへ移動（`PageUp` / `PageDown`）— ダウンロードしたギャラリーの連続閲覧に便利
-- 「📂」ボタンで表示中の画像をエクスプローラーで表示
 - セキュリティ: サーバーは `127.0.0.1` のみで待ち受け、指定フォルダ外のパスへのアクセスは拒否
 
 ### 注意
@@ -421,8 +421,8 @@ v1.3.0 で達成: docs 整合性チェッカーの CI 組み込み、README/docs
 
 ### 利便性
 
-- [x] **ギャラリー検索 / タグ閲覧** — ビューワーにタグ検索を実装済み (`🔍 検索` / `/` キー。タグクラウド + 自由語 AND 検索)
-- [ ] **検索の拡張** — 日付範囲・評価での絞り込み、検索結果の並び替え
+- [x] **ギャラリー検索 / タグ閲覧** — ビューワーにタグ検索を実装済み (`🔍 検索` / `/` キー。タグクラウド + 自由語 AND 検索 + 日付範囲・評価絞り込み)
+- [ ] **検索の拡張** — 検索結果の並び替え (日付順 / 評価順)
 - [x] **差分更新 (再同期)** — 既存フォルダへの再実行で新規ページだけ取得 (スキップ機構)。`--resync` で欠けページ・消えたファイルの検出報告付き
 - [ ] **exhentai 対応の案内整備** — Cookie 設定フローの対話化 (`--cookie` / `EH_COOKIE` の入力支援)
 - [ ] **サムネイルキャッシュの共有化** — `.thumbcache/` を中央一括管理にしてフォルダ移動時に再生成しない
@@ -669,11 +669,11 @@ node image_viewer.mjs ./pics --port 9000          # custom port
 - Thumbnail grid with natural sort (`01, 02, …, 10` — same order as Explorer)
 - **Tag search** (`🔍 Search` button / `/` key) — search downloaded collections across `metadata.json` tags (artist / character / series / language) saved at download time
   - Click a tag in the tag cloud to filter, and combine with free-text (title substring) via AND search
-  - Jump straight to a gallery from the results
+  - **Filter by upload date range and minimum rating** (date pickers and a rating select in the search panel)
+  - Results show upload date and rating, and jump straight to a gallery
 - Zoom (`Ctrl`+wheel / `-` `+` `0`), rotate (`r`), drag to pan, fit ⇄ 100% (double-click)
 - Slideshow (`s`, 4s interval, looping) / fullscreen (`f`)
 - Jump to the previous / next sibling folder (`PageUp` / `PageDown`) — handy for browsing downloaded galleries one after another
-- The 📂 button reveals the current image in Explorer
 - Security: the server binds to `127.0.0.1` only and rejects paths outside the target folder
 
 ### Viewer notes
@@ -878,8 +878,8 @@ and this public roadmap itself.
 
 ### Convenience
 
-- [x] **Gallery search / tag browsing** — tag search implemented in the viewer (`🔍 Search` / `/` key; tag cloud + free-text AND search)
-- [ ] **Search extensions** — filter by date range / rating, sort search results
+- [x] **Gallery search / tag browsing** — tag search implemented in the viewer (`🔍 Search` / `/` key; tag cloud + free-text AND search + date range & rating filters)
+- [ ] **Search extensions** — sort search results (by date / rating)
 - [x] **Incremental re-sync** — re-running against an existing folder fetches only new pages (skip mechanism); `--resync` adds detection & reporting of missing pages / deleted files
 - [ ] **Smoother exhentai setup** — interactive cookie configuration helper for `--cookie` / `EH_COOKIE`
 - [ ] **Shared thumbnail cache** — manage `.thumbcache/` centrally so moving folders does not force regeneration
