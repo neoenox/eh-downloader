@@ -209,6 +209,9 @@ node image_viewer.mjs ./pics --port 9000          # ポート指定
   - キャッシュキーはソースパス+mtime+サイズから自動計算するため、画像を差し替えると自動で再生成（手動クリア不要）
   - 72時間以上古いキャッシュは起動時に自動削除
 - サムネイル一覧 + 自然順ソート（`01, 02, …, 10` の順。エクスプローラーと同じ並び）
+- **タグ検索**（`🔍 検索` ボタン / `/` キー）— ダウンロード時に保存した `metadata.json` のタグ (artist / character / series / language) でダウンロード済みコレクションを横断検索
+  - タグクラウドからクリックで絞り込み、自由語（タイトル部分一致）との AND 検索に対応
+  - 検索結果からギャラリーへ直接ジャンプ
 - ズーム（`Ctrl`+ホイール / `-` `+` `0`）/ 回転（`r`）/ ドラッグでパン / フィット ⇄ 100%（ダブルクリック）
 - スライドショー（`s`・4秒間隔・ループ）/ フルスクリーン（`f`）
 - 前・次のフォルダへ移動（`PageUp` / `PageDown`）— ダウンロードしたギャラリーの連続閲覧に便利
@@ -417,7 +420,8 @@ v1.3.0 で達成: docs 整合性チェッカーの CI 組み込み、README/docs
 
 ### 利便性
 
-- [ ] **ギャラリー検索 / タグ閲覧** — `metadata.json` に保存したタグ (artist / language / character) でダウンロード済みコレクションを横断検索・フィルタするビューワー拡張
+- [x] **ギャラリー検索 / タグ閲覧** — ビューワーにタグ検索を実装済み (`🔍 検索` / `/` キー。タグクラウド + 自由語 AND 検索)
+- [ ] **検索の拡張** — 日付範囲・評価での絞り込み、検索結果の並び替え
 - [ ] **差分更新 (再同期)** — ギャラリーに新規ページが追加されたとき、既存フォルダに追加分だけをダウンロード
 - [ ] **exhentai 対応の案内整備** — Cookie 設定フローの対話化 (`--cookie` / `EH_COOKIE` の入力支援)
 - [ ] **サムネイルキャッシュの共有化** — `.thumbcache/` を中央一括管理にしてフォルダ移動時に再生成しない
@@ -661,6 +665,9 @@ node image_viewer.mjs ./pics --port 9000          # custom port
   - Cache keys are derived from source path + mtime + size, so replacing an image regenerates its thumbnail automatically (no manual clearing)
   - Cache entries older than 72 hours are purged on startup
 - Thumbnail grid with natural sort (`01, 02, …, 10` — same order as Explorer)
+- **Tag search** (`🔍 Search` button / `/` key) — search downloaded collections across `metadata.json` tags (artist / character / series / language) saved at download time
+  - Click a tag in the tag cloud to filter, and combine with free-text (title substring) via AND search
+  - Jump straight to a gallery from the results
 - Zoom (`Ctrl`+wheel / `-` `+` `0`), rotate (`r`), drag to pan, fit ⇄ 100% (double-click)
 - Slideshow (`s`, 4s interval, looping) / fullscreen (`f`)
 - Jump to the previous / next sibling folder (`PageUp` / `PageDown`) — handy for browsing downloaded galleries one after another
@@ -869,7 +876,8 @@ and this public roadmap itself.
 
 ### Convenience
 
-- [ ] **Gallery search / tag browsing** — search & filter downloaded collections across `metadata.json` tags (artist / language / character) from the viewer
+- [x] **Gallery search / tag browsing** — tag search implemented in the viewer (`🔍 Search` / `/` key; tag cloud + free-text AND search)
+- [ ] **Search extensions** — filter by date range / rating, sort search results
 - [ ] **Incremental re-sync** — when new pages are added to a gallery, download only the additions into the existing folder
 - [ ] **Smoother exhentai setup** — interactive cookie configuration helper for `--cookie` / `EH_COOKIE`
 - [ ] **Shared thumbnail cache** — manage `.thumbcache/` centrally so moving folders does not force regeneration

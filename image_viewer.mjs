@@ -116,6 +116,7 @@ sharp があれば一覧を高速表示するサムネイルを自動生成す�
   s                     スライドショー (4秒間隔)
   f                     フルスクリーン
   g                     一覧に戻る
+  /                     タグ検索パネルを開く
   Esc                   一覧に戻る / 閉じる
   ホイール              ページ送り (Ctrl+ホイールでズーム)
   ダブルクリック        フィット ⇄ 100%
@@ -177,6 +178,84 @@ function sendJson(res, obj, status = 200) {
   const body = JSON.stringify(obj);
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-cache" });
   res.end(body);
+}
+
+// ---------------------------------------------------------------------------
+// タグ検索 (metadata.json 走査)
+// ---------------------------------------------------------------------------
+
+// baseDir 配下の metadata.json をすべて走査して検索インデックスを構築する。
+// キャッシュ: mtime が変わらない限り再走査しない (大きなコレクションでも高速)。
+let searchIndex = null; // { entries: [{ dir, title, category, tags, mtimeMs }], }
+
+async function buildSearchIndex(baseAbs) {
+  const entries = [];
+  const walk = async (rel) => {
+    const abs = path.resolve(baseAbs, rel);
+    let list;
+    try { list = await fsp.readdir(abs, { withFileTypes: true }); } catch { return; }
+    for (const e of list) {
+      if (!e.isDirectory() || e.name.startsWith(".")) continue;
+      const sub = rel ? rel + "/" + e.name : e.name;
+      const metaPath = path.join(baseAbs, sub, "metadata.json");
+      try {
+        const st = await fsp.stat(metaPath);
+        const meta = JSON.parse(await fsp.readFile(metaPath, "utf8"));
+        entries.push({
+          dir: sub,
+          title: String(meta.title || e.name),
+          category: String(meta.category || ""),
+          tags: meta.tags && typeof meta.tags === "object" ? meta.tags : {},
+          mtimeMs: st.mtimeMs,
+        });
+      } catch { /* metadata.json なし/壊れ → スキップ */ }
+      await walk(sub);
+    }
+  };
+  await walk("");
+  return { entries };
+}
+
+async function getSearchIndex(baseAbs) {
+  // 簡易キャッシュ: baseDir ごとに 1 エントリ (同一 baseDir を連続検索するケースが大半)
+  if (searchIndex && searchIndex.base === baseAbs) return searchIndex.index;
+  const index = await buildSearchIndex(baseAbs);
+  searchIndex = { base: baseAbs, index };
+  return index;
+}
+function invalidateSearchIndex() { searchIndex = null; }
+
+// クエリに一致するギャラリーを検索する。
+// q: 空白区切りの語。タグ値 / タイトル / カテゴリに部分一致 (大文字小文字を無視)。
+// tag: "namespace:value" 形式 (artist:alice など)。value は部分一致。
+async function searchGalleries(baseAbs, { q = "", tag = "" } = {}) {
+  const { entries } = await getSearchIndex(baseAbs);
+  const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const tagTerms = tag.toLowerCase().split(/\s+/).filter(Boolean);
+  const out = entries.filter((e) => {
+    const flatTags = Object.entries(e.tags).flatMap(([ns, vals]) =>
+      (Array.isArray(vals) ? vals : []).map((v) => `${ns}:${String(v).toLowerCase()}`));
+    for (const t of tagTerms) {
+      if (!flatTags.some((ft) => ft.includes(t))) return false;
+    }
+    const hay = [e.title, e.category, ...flatTags].join(" ").toLowerCase();
+    return terms.every((t) => hay.includes(t));
+  });
+  return out.map((e) => ({ dir: e.dir, title: e.title, category: e.category, tags: e.tags }));
+}
+
+// 登録済みタグの一覧 (namespace ごとに集計、件数付き)
+async function collectTags(baseAbs) {
+  const { entries } = await getSearchIndex(baseAbs);
+  const byNs = {};
+  for (const e of entries) {
+    for (const [ns, vals] of Object.entries(e.tags)) {
+      if (!Array.isArray(vals)) continue;
+      byNs[ns] = byNs[ns] || {};
+      for (const v of vals) byNs[ns][v] = (byNs[ns][v] || 0) + 1;
+    }
+  }
+  return byNs;
 }
 
 function sendError(res, status, message) {
@@ -404,6 +483,18 @@ function buildServer(baseDir, recursive, thumbs) {
         return void res.end(buf);
       }
 
+      if (p === "/api/search") {
+        const q = u.searchParams.get("q") || "";
+        const tag = u.searchParams.get("tag") || "";
+        const results = await searchGalleries(baseDir, { q, tag });
+        return sendJson(res, { q, tag, count: results.length, results });
+      }
+
+      if (p === "/api/tags") {
+        const byNs = await collectTags(baseDir);
+        return sendJson(res, { tags: byNs });
+      }
+
       if (p === "/api/open") {
         const d = (u.searchParams.get("d") || "").replace(/\\/g, "/");
         const f = u.searchParams.get("f") || "";
@@ -527,6 +618,26 @@ button.on { background: #1d3a5f; border-color: #4a9eff; color: #cfe4ff; }
   border-radius: 8px; font-size: 13px; z-index: 60; opacity: 0; pointer-events: none;
   transition: opacity .25s; }
 #toast.show { opacity: 1; }
+#search-panel { position: fixed; top: 52px; left: 50%; transform: translateX(-50%);
+  z-index: 50; width: min(720px, 92vw); }
+#search-panel .box { background: #1a1a22; border: 1px solid #33333d; border-radius: 10px;
+  padding: 14px 16px; }
+.search-row { display: flex; gap: 8px; }
+.search-row input { flex: 1; background: #101014; border: 1px solid #3a3a44; color: #d8d8dc;
+  border-radius: 6px; padding: 7px 10px; font-size: 13px; }
+.search-row button { background: #2a3a55; border: 1px solid #4a9eff; color: #cfe4ff;
+  border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 13px; }
+#search-close { background: #26262e; border-color: #3a3a44; color: #9a9aa4; }
+#tag-cloud { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; max-height: 160px; overflow: auto; }
+#tag-cloud button { background: #20202a; border: 1px solid #33333d; color: #9fc1ef;
+  border-radius: 12px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+#tag-cloud button:hover { border-color: #4a9eff; }
+#search-results { position: fixed; top: 52px; left: 0; right: 0; bottom: 0; z-index: 40;
+  background: #101014; padding: 12px 16px; overflow: auto; }
+.sr-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+#sr-label { color: #9a9aa4; font-size: 13px; }
+#sr-clear { background: #26262e; border: 1px solid #3a3a44; color: #9a9aa4;
+  border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -535,6 +646,7 @@ button.on { background: #1d3a5f; border-color: #4a9eff; color: #cfe4ff; }
   <span id="crumb"></span>
   <button id="btn-prevf" title="前のフォルダ (PageUp)">‹ 前フォルダ</button>
   <button id="btn-nextf" title="次のフォルダ (PageDown)">次フォルダ ›</button>
+  <button id="btn-search" title="タグ検索 (/)">🔍 検索</button>
   <span class="grow"></span>
   <button id="btn-zout" title="ズームアウト (-)">−</button>
   <span id="zoomlabel" style="font-size:12px;color:#9a9aa4;min-width:52px;text-align:center">フィット</span>
@@ -557,13 +669,33 @@ button.on { background: #1d3a5f; border-color: #4a9eff; color: #cfe4ff; }
 
 <footer id="status" class="hide"></footer>
 
+<div id="search-panel" class="hide">
+  <div class="box">
+    <div class="search-row">
+      <input id="search-input" type="text" placeholder="検索語 (タイトル / タグ) 例: alice honkai">
+      <input id="search-tag" type="text" placeholder="タグ (namespace:値) 例: artist:alice">
+      <button id="search-go">検索</button>
+      <button id="search-close">閉じる</button>
+    </div>
+    <div id="tag-cloud"></div>
+  </div>
+</div>
+
+<div id="search-results" class="hide">
+  <div class="sr-head">
+    <span id="sr-label"></span>
+    <button id="sr-clear">× 検索をやめる</button>
+  </div>
+  <div id="sr-body" class="folders"></div>
+</div>
+
 <div id="help" class="hide">
   <div class="box">
     <h2>操作方法</h2>
     <kbd>←</kbd>/<kbd>→</kbd> / <kbd>Space</kbd> 前・次の画像　<kbd>Home</kbd>/<kbd>End</kbd> 先頭・末尾<br>
     <kbd>PageUp</kbd>/<kbd>PageDown</kbd> 前・次のフォルダ（兄弟フォルダを巡回）<br>
     <kbd>-</kbd> / <kbd>+</kbd> / <kbd>0</kbd> ズーム / フィット　<kbd>r</kbd> 回転　<kbd>s</kbd> スライドショー<br>
-    <kbd>f</kbd> フルスクリーン　<kbd>g</kbd> 一覧に戻る　<kbd>Esc</kbd> 閉じる<br>
+    <kbd>f</kbd> フルスクリーン　<kbd>g</kbd> 一覧に戻る　<kbd>Esc</kbd> 閉じる　<kbd>/</kbd> タグ検索<br>
     ホイール: ページ送り（<kbd>Ctrl</kbd>+ホイールでズーム）<br>
     ダブルクリック: フィット ⇄ 100%　ドラッグ: 拡大時のスクロール<br>
     画像は左側の番号順（01, 02, …, 10）で並びます。終了は右上の「✕ 終了」。
@@ -857,6 +989,72 @@ function quitApp() {
   });
 }
 
+// --- タグ検索 ---
+function openSearch() {
+  $('search-panel').classList.remove('hide');
+  $('search-input').focus();
+  api('/api/tags').then(function (d) {
+    var cloud = $('tag-cloud');
+    cloud.textContent = '';
+    Object.keys(d.tags).sort().forEach(function (ns) {
+      var vals = d.tags[ns];
+      Object.keys(vals).sort(function (a, b) { return vals[b] - vals[a]; }).forEach(function (v) {
+        var b = document.createElement('button');
+        b.textContent = ns + ':' + v + ' (' + vals[v] + ')';
+        b.onclick = function () {
+          $('search-tag').value = ns + ':' + v;
+          runSearch();
+        };
+        cloud.appendChild(b);
+      });
+    });
+    if (!cloud.children.length) cloud.textContent = 'タグが見つかりません (metadata.json があるフォルダがありません)';
+  }).catch(function () {});
+}
+function closeSearch() {
+  $('search-panel').classList.add('hide');
+  $('search-results').classList.add('hide');
+}
+function runSearch() {
+  var q = $('search-input').value.trim();
+  var tag = $('search-tag').value.trim();
+  if (!q && !tag) { toast('検索語またはタグを入力してください'); return; }
+  var qs = [];
+  if (q) qs.push('q=' + encodeURIComponent(q));
+  if (tag) qs.push('tag=' + encodeURIComponent(tag));
+  api('/api/search?' + qs.join('&')).then(function (d) {
+    $('search-panel').classList.add('hide');
+    var panel = $('search-results');
+    var body = $('sr-body');
+    body.textContent = '';
+    $('sr-label').textContent = '検索結果: ' + d.count + ' 件' + (q ? ' (語: ' + q + ')' : '') + (tag ? ' (タグ: ' + tag + ')' : '');
+    if (!d.count) {
+      var em = document.createElement('div');
+      em.className = 'empty';
+      em.textContent = '一致するギャラリーがありません。';
+      body.appendChild(em);
+    }
+    d.results.forEach(function (r) {
+      var b = document.createElement('button');
+      var tagCount = Object.values(r.tags).reduce(function (s, a) { return s + a.length; }, 0);
+      b.textContent = '📁 ' + (r.title || r.dir) + (r.category ? '  [' + r.category + ']' : '') + '  (' + tagCount + ' タグ)';
+      b.title = r.dir;
+      b.onclick = function () {
+        closeSearch();
+        loadDir(r.dir, 0);
+      };
+      body.appendChild(b);
+    });
+    panel.classList.remove('hide');
+  }).catch(function (e) { toast('検索に失敗: ' + e.message); });
+}
+$('btn-search').onclick = openSearch;
+$('search-go').onclick = runSearch;
+$('search-close').onclick = closeSearch;
+$('sr-clear').onclick = closeSearch;
+$('search-input').addEventListener('keydown', function (e) { if (e.key === 'Enter') runSearch(); });
+$('search-tag').addEventListener('keydown', function (e) { if (e.key === 'Enter') runSearch(); });
+
 // --- ボタン配線 ---
 $('btn-grid').onclick = goGrid;
 $('btn-prevf').onclick = function () { folderStep(-1); };
@@ -884,6 +1082,13 @@ window.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' || e.key === '?' || e.key === 'h') { $('help').classList.add('hide'); e.preventDefault(); }
     return;
   }
+  // 検索パネル / 入力フィールド中は通常のキー操作を無効化
+  var inSearch = !$('search-panel').classList.contains('hide');
+  if (document.activeElement && document.activeElement.tagName === 'INPUT') {
+    if (e.key === 'Escape') { closeSearch(); e.preventDefault(); }
+    return;
+  }
+  if (inSearch && e.key === 'Escape') { closeSearch(); e.preventDefault(); return; }
   var inViewer = !$('stage').classList.contains('hide');
   switch (e.key) {
     case 'ArrowRight': if (inViewer) { next(); e.preventDefault(); } break;
@@ -900,6 +1105,7 @@ window.addEventListener('keydown', function (e) {
     case 's': case 'S': toggleSlide(); break;
     case 'f': case 'F': toggleFull(); break;
     case 'g': case 'G': if (inViewer) { goGrid(); e.preventDefault(); } break;
+    case '/': openSearch(); e.preventDefault(); break;
     case '?': case 'h': case 'H': $('help').classList.remove('hide'); break;
     case 'Escape':
       if (inViewer) { goGrid(); e.preventDefault(); }

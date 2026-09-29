@@ -52,6 +52,17 @@ fs.writeFileSync(path.join(tmp, "01_alpha", "a.png"), "A");
 fs.writeFileSync(path.join(tmp, "01_alpha", "b.webp"), "B");
 fs.mkdirSync(path.join(tmp, "10_beta"));
 fs.writeFileSync(path.join(tmp, "10_beta", "c.jpg"), "C");
+// タグ検索用の metadata.json (01_alpha と 10_beta に付与)
+fs.writeFileSync(path.join(tmp, "01_alpha", "metadata.json"), JSON.stringify({
+  title: "Alpha Collection",
+  category: "Doujinshi",
+  tags: { artist: ["alice"], character: ["asta"], series: ["honkai star rail"], language: ["japanese"], category: ["Doujinshi"] },
+}));
+fs.writeFileSync(path.join(tmp, "10_beta", "metadata.json"), JSON.stringify({
+  title: "Beta Works",
+  category: "Manga",
+  tags: { artist: ["beta"], language: ["english"], category: ["Manga"] },
+}));
 fs.mkdirSync(path.join(tmp, "empty"));
 
 // --- サーバー起動ヘルパー ---
@@ -245,6 +256,43 @@ if (sharp) {
 
   await fetch(base + "/api/quit");
   check("fallback: server exits cleanly", (await waitExit(child)) === 0);
+}
+
+// ================== タグ検索 API の検証 ==================
+{
+  const { child, ready } = startServer();
+  const port = await ready;
+  const base = "http://localhost:" + port;
+
+  // タグクラウド (namespace ごとの集計)
+  const jt = await (await fetch(base + "/api/tags")).json();
+  eq("tags: artist counted", jt.tags.artist, { alice: 1, beta: 1 });
+  eq("tags: series counted", jt.tags.series, { "honkai star rail": 1 });
+  check("tags: metadata-less folders excluded", !jt.tags.artist || (!jt.tags.artist.empty && !jt.tags.artist["10_beta"]), jt.tags);
+
+  // 自由語検索 (タイトル部分一致・大文字小文字を無視)
+  const j1 = await (await fetch(base + "/api/search?q=alpha")).json();
+  eq("search: q=title match", j1.results.map((r) => r.dir), ["01_alpha"]);
+  check("search: result carries tags", j1.results[0].tags.artist.includes("alice"));
+
+  // タグ検索 (namespace:値 の部分一致)
+  const j2 = await (await fetch(base + "/api/search?tag=" + encodeURIComponent("artist:beta"))).json();
+  eq("search: tag match", j2.results.map((r) => r.dir), ["10_beta"]);
+
+  // 複合: 自由語 + タグの AND
+  const j3 = await (await fetch(base + "/api/search?q=works&tag=" + encodeURIComponent("language:english"))).json();
+  eq("search: q+tag AND", j3.results.map((r) => r.dir), ["10_beta"]);
+
+  // 該当なし
+  const j4 = await (await fetch(base + "/api/search?q=nonexistent")).json();
+  eq("search: no match", j4.count, 0);
+
+  // メタデータなしフォルダは検索対象外 (empty/ には metadata.json がない)
+  const j5 = await (await fetch(base + "/api/search?q=" + encodeURIComponent("empty"))).json();
+  eq("search: folders without metadata excluded", j5.count, 0);
+
+  await fetch(base + "/api/quit");
+  check("search: server exits cleanly", (await waitExit(child)) === 0);
 }
 
 // ================== ✕終了ボタンの動作検証 ==================
