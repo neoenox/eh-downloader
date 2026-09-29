@@ -88,9 +88,13 @@ const isDirectRun = (() => {
   try { return path.resolve(process.argv[1]) === fileURLToPath(import.meta.url); } catch { return false; }
 })();
 if (isDirectRun) {
+  // esbuild の CJS バンドルでは top-level await が使えないため async 関数に包む
+  // (run_all.mjs 経由でバンドルに取り込まれるため、この分岐は SEA では未実行だが安全側で対応)
   const argVer = process.argv[2];
   const current = argVer || JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
-  const info = await checkForUpdate(current);
-  if (info) console.log(formatUpdateNotice(info));
-  else console.log(`最新です (${current})`);
+  (async () => {
+    const info = await checkForUpdate(current);
+    if (info) console.log(formatUpdateNotice(info));
+    else console.log(`最新です (${current})`);
+  })();
 }
