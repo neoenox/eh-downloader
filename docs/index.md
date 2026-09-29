@@ -29,6 +29,7 @@
 1. `docs/<新しいガイド>.md` を作成する (既存のガイドと同様、日本語セクションの後に英語セクションを続ける形式)
 2. このページの「ガイド一覧」表に 1 行追加する
 3. README の日英両方からリンクを張る (冒頭のナビゲーション行またはクイックスタート付近)
+4. `npm run check:docs` でアセット名・オプション・アンカーの整合を確認する (CI の `docs` ジョブも同じチェックを実行)
 
 ---
 
@@ -63,3 +64,4 @@ guides below as needed.
 1. Create `docs/<new-guide>.md` (follow the existing format: Japanese section followed by an English section)
 2. Add a row to the "Guides" table above
 3. Link it from the README (navigation line at the top or near the quick start) in both languages
+4. Run `npm run check:docs` to verify asset names, options and anchors (the CI `docs` job runs the same check)

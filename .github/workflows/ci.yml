@@ -65,11 +65,28 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.force_failure }}
         run: exit 1
 
+  docs:
+    name: docs consistency check
+    # README / docs のアセット名・オプション・アンカーを実際のリリースと照合。
+    # gh が使えるよう ubuntu のみで実行 (Windows では gh の PATH 解決が環境依存)。
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check docs consistency (assets, options, anchors)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/check_docs_consistency.mjs --repo ${{ github.repository }}
+
   notify:
     name: Notify Slack on failure
-    needs: test
+    needs: [test, docs]
     # PR では通知せず、main push または明示的な手動実行だけを対象にする
-    if: ${{ always() && needs.test.result == 'failure' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ always() && (needs.test.result == 'failure' || needs.docs.result == 'failure') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     steps:
       - name: Send Slack notification

@@ -6,6 +6,7 @@
   "license": "MIT",
   "scripts": {
     "test": "node test_eh_download.mjs && node test_image_viewer.mjs && node test_run_all.mjs",
+    "check:docs": "node scripts/check_docs_consistency.mjs",
     "build:exe": "node build_exe.mjs"
   },
   "dependencies": {
