@@ -303,6 +303,90 @@ spawnSync(process.execPath, [mockTimeoutProbe], { cwd: cliTmp, timeout: 60000, e
 const abortMs = fs.existsSync(path.join(cliTmp, "abort_ms.txt")) ? fs.readFileSync(path.join(cliTmp, "abort_ms.txt"), "utf8").trim().split("\n").map(Number) : [];
 cliCheck("--timeout 7 が AbortSignal.timeout(7000) として使われる", abortMs.length > 0 && abortMs.every((ms) => ms === 7000), { abortMs });
 
+// (8) e2e 境界ケース: 509 / ネットワーク断
+// 共通: ギャラリー 1 件 (2 枚) の HTML を返すモック。fetch 呼び出し回数と
+// 返却シーケンスを記録ファイルに書き出し、親プロセスから検証する。
+// 509 待機は実時間で 60 秒かかるため、テストでは「509 が返る呼び出し回数」と
+// 「停止メッセージ / 最終的な成否」を検証対象とし、所要時間の上限だけ見る。
+const G_509 = "https://e-hentai.org/g/666/ffff6666/";
+const G_509_RETRY = "https://e-hentai.org/g/777/gggg7777/";
+const G_NETDOWN = "https://e-hentai.org/g/888/hhhh8888/";
+const mockBoundary = path.join(cliTmp, "mock_boundary.mjs");
+fs.writeFileSync(
+  mockBoundary,
+  `// 境界ケース用 fetch モック:
+//   G_509       → 常に 509 (回数超過で失敗すること)
+//   G_509_RETRY → 1 回目だけ 509、以降は正常 (自動再試行で回復すること)
+//   G_NETDOWN   → 1 回目だけ fetch 例外、以降は正常 (ネットワーク断からの回復)
+import fs from "node:fs";
+import path from "node:path";
+const hits = {};
+const bump = (key) => {
+  hits[key] = (hits[key] || 0) + 1;
+  fs.writeFileSync(path.join(${JSON.stringify(cliTmp)}, "boundary_hits.json"), JSON.stringify(hits));
+  return hits[key];
+};
+const galleryHtml = (g) =>
+  '<html><head><title>T - E-Hentai</title></head><body><h1 id="gn">T</h1>' +
+  '<a href="' + g + 's/0123456789/1-1/"><img src="x.jpg"></a></body></html>';
+const imgPageHtml = (n) => '<html><body><img id="img" src="https://ae.example.invalid/' + n + '.webp"></body></html>';
+const ok = (body, ct) => ({ ok: true, status: 200, text: async () => body, headers: { get: (k) => (String(k).toLowerCase() === "content-type" ? ct : null) }, arrayBuffer: async () => new ArrayBuffer(0) });
+// 各ギャラリー URL への呼び出し回数を記録 (bump は 509/例外の判定内でのみ呼ぶ。
+// 先に呼ぶと 1 回目が必ず正常応答になり境界が再現しない)
+const is509 = (u) => /\\/g\\/666\\//.test(u) || (/\\/g\\/777\\//.test(u) && bump("777_all") === 1);
+const isNetDown = (u) => /\\/g\\/888\\//.test(u) && bump("888_all") === 1;
+globalThis.fetch = async (url) => {
+  const u = String(url);
+  if (/\\/g\\/666\\//.test(u)) bump("666_all");
+  if (isNetDown(u)) throw new Error("fetch failed (ECONNRESET)");
+  if (/\\/s\\/[0-9a-f]{10}\\/\\d+-\\d+/.test(u)) {
+    bump("imgpage");
+    return ok(imgPageHtml(parseInt(u.match(/(\\d+)-\\d+/)[1], 10)), "text/html");
+  }
+  if (is509(u)) return { ok: false, status: 509, text: async () => "bandwidth limit", headers: { get: () => "text/html" }, arrayBuffer: async () => new ArrayBuffer(0) };
+  if (/\\/g\\/(666|777)\\//.test(u)) return ok(galleryHtml(u), "text/html");
+  if (/\\/g\\/888\\//.test(u)) return ok(galleryHtml(u), "text/html");
+  if (/\\.webp$/.test(u)) {
+    bump("img");
+    return { ok: true, status: 200, text: async () => "", headers: { get: (k) => (String(k).toLowerCase() === "content-type" ? "image/webp" : null) }, arrayBuffer: async () => Buffer.from("WEBPDATA") };
+  }
+  return { ok: false, status: 404, text: async () => "", headers: { get: () => "text/html" }, arrayBuffer: async () => new ArrayBuffer(0) };
+};
+const { runDownload } = await import(${JSON.stringify(pathToFileURL(scriptPath).href)});
+// --retries を 2 に絞って 509 の 60 秒待機を 1 回だけに抑える (2 回目は成功)
+process.exitCode = await runDownload(process.argv.slice(2));
+`,
+);
+
+// --- 8a. 509 が 1 回だけ → 自動再試行で回復 ---
+fs.rmSync(path.join(cliTmp, "failed_urls.txt"), { force: true });
+fs.rmSync(path.join(cliTmp, "boundary_hits.json"), { force: true });
+const r8a = spawnSync(process.execPath, [mockBoundary, G_509_RETRY, "--retries", "2", "--delay", "0"], { cwd: cliTmp, timeout: 120000, encoding: "utf8" });
+cliCheck("509→回復: exit 0 (自動再試行で成功)", r8a.status === 0, { code: r8a.status, out: r8a.stdout.slice(-400) });
+cliCheck("509→回復: 509検出の警告が出る", /509検出/.test(r8a.stdout));
+cliCheck("509→回復: 全接続停止のメッセージ", /全\d+接続を\d+秒停止/.test(r8a.stdout));
+const hits8a = JSON.parse(fs.readFileSync(path.join(cliTmp, "boundary_hits.json"), "utf8"));
+cliCheck("509→回復: ギャラリー取得は2回以上 (1回目509/その後成功)", (hits8a["777_all"] || 0) >= 2, hits8a);
+cliCheck("509→回復: 画像がダウンロードされている", fs.existsSync(path.join(cliTmp, "boundary_hits.json")) && JSON.parse(fs.readFileSync(path.join(cliTmp, "boundary_hits.json"), "utf8")).img >= 1, JSON.parse(fs.readFileSync(path.join(cliTmp, "boundary_hits.json"), "utf8")));
+
+// --- 8b. 常に 509 → 試行回数を使い切って失敗扱い ---
+fs.rmSync(path.join(cliTmp, "boundary_hits.json"), { force: true });
+fs.rmSync(path.join(cliTmp, "failed_urls.txt"), { force: true });
+const r8b = spawnSync(process.execPath, [mockBoundary, G_509, "--retries", "2", "--delay", "0"], { cwd: cliTmp, timeout: 120000, encoding: "utf8" });
+cliCheck("509超過: exit 2 (一部失敗として記録)", r8b.status === 2, { code: r8b.status });
+const hits8b = JSON.parse(fs.readFileSync(path.join(cliTmp, "boundary_hits.json"), "utf8"));
+cliCheck("509超過: ギャラリー取得は指定試行回数だけ", (hits8b["666_all"] || 0) === 2, hits8b);
+cliCheck("509超過: failed_urls.txt に書かれる", fs.existsSync(path.join(cliTmp, "failed_urls.txt")) && fs.readFileSync(path.join(cliTmp, "failed_urls.txt"), "utf8").includes(G_509));
+
+// --- 8c. ネットワーク断が 1 回 → 自動再試行で回復 ---
+fs.rmSync(path.join(cliTmp, "boundary_hits.json"), { force: true });
+fs.rmSync(path.join(cliTmp, "failed_urls.txt"), { force: true });
+const r8c = spawnSync(process.execPath, [mockBoundary, G_NETDOWN, "--retries", "2", "--delay", "0"], { cwd: cliTmp, timeout: 120000, encoding: "utf8" });
+cliCheck("ネット断→回復: exit 0", r8c.status === 0, { code: r8c.status, out: r8c.stdout.slice(-400) });
+cliCheck("ネット断→回復: 再試行メッセージが出る", /秒後に再試行/.test(r8c.stdout));
+const hits8c = JSON.parse(fs.readFileSync(path.join(cliTmp, "boundary_hits.json"), "utf8"));
+cliCheck("ネット断→回復: ギャラリー取得は2回以上 (1回目例外/その後成功)", (hits8c["888_all"] || 0) >= 2, hits8c);
+
 fs.rmSync(cliTmp, { recursive: true, force: true });
 let cliFailed = 0;
 for (const c of cliChecks) {
