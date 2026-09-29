@@ -5,9 +5,18 @@
 
 English summary follows the Japanese sections.
 
-## [Unreleased]
+## [v1.4.1] — 2026-09-30: 差分更新 (--resync) と検索フィルタ、Explorer ボタン廃止
 
-- (次回リリース予定の変更はここに追記)
+### 追加
+
+- **`--resync`** — 差分更新モード。追加・削除されたページだけを検出して取得（未取得ページは従来どおり全件対象）
+  - index に記録があるのに実ファイルが欠けているページは、自動的に再取得対象へ戻して警告表示
+  - サイト側で見つからなくなった index ページは警告表示（ファイルは保持）
+- **検索に投稿日範囲・最低評価フィルタ** — `/api/search` に `from` / `to` / `minRating` パラメータを追加。UI では日付ピッカーと評価セレクトで指定
+
+### 廃止
+
+- ビューワーの **`📂` (Explorer で表示) ボタンと `/api/open` エンドポイントを削除** — セキュリティ上の理由でローカルのフォルダ開放APIを廃止
 
 ## [v1.4.0] — 2026-09-29: ビューワーにタグ検索を追加
 
@@ -100,9 +109,18 @@ English summary follows the Japanese sections.
 Major changes of this project. See each release's notes on the
 [Releases page](https://github.com/neoenox/eh-downloader/releases) for details.
 
-## [Unreleased]
+## [v1.4.1] — 2026-09-30: Incremental re-sync (--resync), search filters, Explorer button removal
 
-- (upcoming changes go here)
+### Added
+
+- **`--resync`** — incremental re-sync mode. Detects and fetches only added/removed pages (unfetched pages are fetched as before)
+  - Pages recorded in the index but missing from disk are automatically queued for re-fetch, with a warning
+  - Index pages no longer found on the site are reported with a warning (files kept)
+- **Upload-date range & minimum-rating filters for search** — `from` / `to` / `minRating` parameters added to `/api/search`; set via date pickers and a rating select in the UI
+
+### Removed
+
+- Removed the viewer's **`📂` (reveal in Explorer) button and the `/api/open` endpoint** — the local folder-opening API was dropped for security reasons
 
 ## [v1.4.0] — 2026-09-29: Tag search in the viewer
 
@@ -188,7 +206,8 @@ Major changes of this project. See each release's notes on the
 - **Viewer** (`image_viewer.mjs`) — thumbnail grid (fast with sharp) / natural sort / zoom, rotate, slideshow / folder hopping with PageUp/PageDown
 - **All-in-one launcher** (`run_all.mjs`) — download → convert → view in one command
 
-[Unreleased]: https://github.com/neoenox/eh-downloader/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/neoenox/eh-downloader/compare/v1.4.1...HEAD
+[v1.4.1]: https://github.com/neoenox/eh-downloader/compare/v1.4.0...v1.4.1
 [v1.4.0]: https://github.com/neoenox/eh-downloader/compare/v1.3.3...v1.4.0
 [v1.3.3]: https://github.com/neoenox/eh-downloader/compare/v1.3.2...v1.3.3
 [v1.3.2]: https://github.com/neoenox/eh-downloader/compare/v1.3.1...v1.3.2
