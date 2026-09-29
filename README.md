@@ -118,6 +118,7 @@ node eh_download.mjs urls.txt ./pics --parallel 3   # 保存先とオプショ�
 | `--parallel N` (`-j N`) | 同時接続数（デフォルト: 2、推奨 2〜3） |
 | `--timeout 秒` | リクエストのタイムアウト秒数（デフォルト: ページ 45 秒 / 画像 120 秒） |
 | `--retries N` | 失敗時の最大試行回数（デフォルト: ページ 5 / 画像 4。`1` で再試行なし。404 などの恒久的エラーは常に即失敗） |
+| `--resync` | 差分更新モード：既存フォルダに再実行して新規ページだけ取得し、欠けたページ番号・消えたファイルを検出報告 |
 | `--original` | オリジナル画質を試みる（**要ログイン Cookie**。失敗時は通常画質にフォールバック） |
 | `--cookie "..."` | Cookie 文字列（`exhentai.org` や `--original` に必要）。環境変数 `EH_COOKIE` でも可 |
 | `--list <file>` | URL 一覧ファイルを一括処理（URL 直指定との併用は不可＝エラーになる） |
@@ -422,7 +423,7 @@ v1.3.0 で達成: docs 整合性チェッカーの CI 組み込み、README/docs
 
 - [x] **ギャラリー検索 / タグ閲覧** — ビューワーにタグ検索を実装済み (`🔍 検索` / `/` キー。タグクラウド + 自由語 AND 検索)
 - [ ] **検索の拡張** — 日付範囲・評価での絞り込み、検索結果の並び替え
-- [ ] **差分更新 (再同期)** — ギャラリーに新規ページが追加されたとき、既存フォルダに追加分だけをダウンロード
+- [x] **差分更新 (再同期)** — 既存フォルダへの再実行で新規ページだけ取得 (スキップ機構)。`--resync` で欠けページ・消えたファイルの検出報告付き
 - [ ] **exhentai 対応の案内整備** — Cookie 設定フローの対話化 (`--cookie` / `EH_COOKIE` の入力支援)
 - [ ] **サムネイルキャッシュの共有化** — `.thumbcache/` を中央一括管理にしてフォルダ移動時に再生成しない
 - [x] **ビューワーの専用ウィンドウ化** — Windows では Edge アプリモードでアドレスバー無しの独立ウィンドウとして起動 (v1.3.0)。`--window-size` で初期サイズも指定可能
@@ -574,6 +575,7 @@ If one gallery fails (dead link, deleted, etc.), the rest continue and a summary
 | `--parallel N` (`-j N`) | Concurrent connections (default: 2, recommended 2–3) |
 | `--timeout SEC` | Request timeout in seconds (defaults: 45 s for pages / 120 s for images) |
 | `--retries N` | Max attempts on failure (defaults: 5 for pages / 4 for images; `1` disables retries. Permanent errors like 404 always fail immediately) |
+| `--resync` | Incremental re-sync mode: re-run against an existing folder to fetch only new pages, reporting missing page numbers / deleted files |
 | `--original` | Try original quality (**requires login cookies**; falls back to normal quality on failure) |
 | `--cookie "..."` | Cookie string (required for `exhentai.org` and `--original`). Also via the `EH_COOKIE` env var |
 | `--list <file>` | Batch process a URL list file (cannot be combined with direct URLs — exits with an error) |
@@ -878,7 +880,7 @@ and this public roadmap itself.
 
 - [x] **Gallery search / tag browsing** — tag search implemented in the viewer (`🔍 Search` / `/` key; tag cloud + free-text AND search)
 - [ ] **Search extensions** — filter by date range / rating, sort search results
-- [ ] **Incremental re-sync** — when new pages are added to a gallery, download only the additions into the existing folder
+- [x] **Incremental re-sync** — re-running against an existing folder fetches only new pages (skip mechanism); `--resync` adds detection & reporting of missing pages / deleted files
 - [ ] **Smoother exhentai setup** — interactive cookie configuration helper for `--cookie` / `EH_COOKIE`
 - [ ] **Shared thumbnail cache** — manage `.thumbcache/` centrally so moving folders does not force regeneration
 - [x] **Standalone viewer window** — on Windows the viewer opens as an address-bar-free app-mode window via Edge (v1.3.0); the initial size is configurable via `--window-size`

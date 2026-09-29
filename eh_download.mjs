@@ -24,7 +24,8 @@
  *   --original      オリジナル画質を試みる (要ログインCookie。失敗時は通常画質にフォールバック)
  *   --cookie "..."  Cookie文字列 (exhentai.org や --original にはログインCookieが必要)
  *   --delay 秒      リクエスト間隔 (デフォルト: 1.2)
- *   --timeout 秒    リクエストのタイムアウト秒数 (デフォルト: ページ 45 / 画像 120)
+ *   --resync        差分更新モード: 既存フォルダに再実行して新規ページだけ取得。
+ *                   欠けたページ番号・消えたファイルを検出して報告する
  *   --retries N     失敗時の最大試行回数 (デフォルト: ページ 5 / 画像 4。1 で再試行なし)
  *   --convert F     ダウンロード完了後に png / jpeg へ変換
  *   --quality N     --convert jpeg の品質 1-100 (デフォルト: 90)
@@ -55,7 +56,7 @@ const UA =
 // 経由で実行されるため)。直接実行時は末尾の isDirectRun ブロックから batchMain() が呼ばれる。
 // 実行パラメータは batchMain() 冒頭で代入する (取得系関数から参照されるためモジュールスコープ)。
 let listFile = null, urlArgs = [], outRoot = ".";
-let wantOriginal = false, cookie = "", delayMs = 1200, parallel = 2;
+let wantOriginal = false, cookie = "", delayMs = 1200, parallel = 2, resync = false;
 let timeoutSec = null, retries = null;
 let timeoutMsPage = 45000, timeoutMsImage = 120000, maxRetriesPage = 5, maxRetriesImage = 4;
 let convertFormat = null, convertQuality = 90, deleteAfterConvert = false, saveMetadata = true;
@@ -67,7 +68,7 @@ function printHelpFromComment() {
     console.log(lines.slice(1, end).map((l) => l.replace(/^ \* ?/, "")).join("\n"));
   } catch {
     // SEA (単一exe) ではソースが読めないため固定文字列で代替
-    console.log("使い方: eh_download.mjs <ギャラリーURL...> [保存先ディレクトリ] [オプション]\n\nオプション:\n  --list <file>   URL一覧ファイルを一括処理 (1行1URL)\n  --parallel N    同時接続数 (デフォルト: 2。推奨 2〜3)\n  --original      オリジナル画質を試みる (要ログインCookie)\n  --cookie \"...\" Cookie文字列 (exhentai.org や --original には必要)\n  --delay 秒      リクエスト間隔 (デフォルト: 1.2)\n  --timeout 秒    リクエストのタイムアウト秒数 (デフォルト: ページ 45 / 画像 120)\n  --retries N     失敗時の最大試行回数 (デフォルト: ページ 5 / 画像 4。1 で再試行なし)\n  --help          ヘルプ表示\n\n環境変数 EH_COOKIE でもCookieを渡せます。\n再実行するとダウンロード済みのファイルはスキップされます(レジューム)。");
+    console.log("使い方: eh_download.mjs <ギャラリーURL...> [保存先ディレクトリ] [オプション]\n\nオプション:\n  --list <file>   URL一覧ファイルを一括処理 (1行1URL)\n  --parallel N    同時接続数 (デフォルト: 2。推奨 2〜3)\n  --original      オリジナル画質を試みる (要ログインCookie)\n  --cookie \"...\" Cookie文字列 (exhentai.org や --original には必要)\n  --delay 秒      リクエスト間隔 (デフォルト: 1.2)\n  --timeout 秒    リクエストのタイムアウト秒数 (デフォルト: ページ 45 / 画像 120)\n  --retries N     失敗時の最大試行回数 (デフォルト: ページ 5 / 画像 4。1 で再試行なし)\n  --resync        差分更新モード (欠けページの検出・報告付きで再同期)\n  --help          ヘルプ表示\n\n環境変数 EH_COOKIE でもCookieを渡せます。\n再実行するとダウンロード済みのファイルはスキップされます(レジューム)。");
   }
 }
 
@@ -110,6 +111,7 @@ function parseCli(args) {
   const convertQuality = qualityIdx !== -1 ? Math.min(100, Math.max(1, parseInt(args[qualityIdx + 1], 10) || 90)) : 90;
   const deleteAfterConvert = args.includes("--del");
   const saveMetadata = !args.includes("--no-metadata");
+  const resync = args.includes("--resync");
 
   // タイムアウト (秒) / リトライ回数。未指定時は従来の内部固定値を使う
   const timeoutIdx = args.indexOf("--timeout");
@@ -126,7 +128,7 @@ function parseCli(args) {
   }
 
   return {
-    listFile, urlArgs, outRoot, wantOriginal, cookie, delayMs, parallel,
+    listFile, urlArgs, outRoot, wantOriginal, cookie, delayMs, parallel, resync,
     convertFormat, convertQuality, deleteAfterConvert, saveMetadata,
     timeoutSec: Number.isFinite(timeoutSec) ? timeoutSec : null,
     retries: Number.isInteger(retries) ? retries : null,
@@ -434,18 +436,42 @@ async function downloadGallery(galleryUrl) {
   }
   saveIndex();
 
+  // --resync: 差分更新の明示モード。既存ファイルの内、index に記録がなく
+  // 対応するページ番号が今回の一覧に存在しない場合は「欠け」として報告する。
+  // また index に記録があるが実ファイルが消えているページは再取得対象に戻す。
+  if (resync) {
+    const removed = [];
+    for (const [num, rec] of Object.entries(index)) {
+      if (rec && rec.file && !fs.existsSync(path.join(outDir, rec.file))) removed.push(parseInt(num, 10));
+    }
+    if (removed.length > 0) {
+      log(`⚠ --resync: index にあるが実ファイルが欠けているページを再取得対象に戻します: ${removed.sort((a, b) => a - b).join(", ")}`);
+    }
+  }
+
   // 4) ダウンロード対象を組み立て (取得済みは除外)
   let done = 0, skipped = 0, failed = 0;
   const referer = `https://${host}/`;
   const tasks = [];
+  const fetchedPageNums = new Set();
   for (const pageUrl of imagePageUrls) {
     const pageNum = parseInt((pageUrl.match(/-(\d+)\/?$/) || [])[1], 10);
+    fetchedPageNums.add(pageNum);
     const rec = index[pageNum];
     if (rec && rec.file && fs.existsSync(path.join(outDir, rec.file)) && fs.statSync(path.join(outDir, rec.file)).size > 0) {
       skipped++;
       continue;
     }
     tasks.push({ pageUrl, pageNum });
+  }
+
+  // --resync: 今回の一覧に無いページ番号が index に残っていれば報告する
+  // (サイト側で削除されたページ。実ファイルがあればそのまま残す)
+  if (resync) {
+    const stale = Object.keys(index).map(Number).filter((n) => !fetchedPageNums.has(n));
+    if (stale.length > 0) {
+      log(`⚠ --resync: サイト側で見つからないページ番号が index に残っています (ファイルはそのまま保持): ${stale.sort((a, b) => a - b).join(", ")}`);
+    }
   }
 
   log(`▶ 設定: 同時${parallel}接続 / 間隔${(delayMs / 1000).toFixed(1)}秒 / 対象${tasks.length}枚 (スキップ${skipped}枚)`);
@@ -554,7 +580,7 @@ async function batchMain(argv = process.argv.slice(2)) {
     printHelpFromComment();
     return argv.length === 0 ? 1 : 0;
   }
-  ({ listFile, urlArgs, outRoot, wantOriginal, cookie, delayMs, parallel, convertFormat, convertQuality, deleteAfterConvert, saveMetadata, timeoutSec, retries } = parseCli(argv));
+  ({ listFile, urlArgs, outRoot, wantOriginal, cookie, delayMs, parallel, resync, convertFormat, convertQuality, deleteAfterConvert, saveMetadata, timeoutSec, retries } = parseCli(argv));
   if (timeoutSec != null) {
     timeoutMsPage = Math.round(timeoutSec * 1000);
     timeoutMsImage = Math.round(timeoutSec * 1000);

@@ -387,6 +387,60 @@ cliCheck("ネット断→回復: 再試行メッセージが出る", /秒後に�
 const hits8c = JSON.parse(fs.readFileSync(path.join(cliTmp, "boundary_hits.json"), "utf8"));
 cliCheck("ネット断→回復: ギャラリー取得は2回以上 (1回目例外/その後成功)", (hits8c["888_all"] || 0) >= 2, hits8c);
 
+// (9) 差分更新 (再同期): 既存フォルダに再実行 → 新規ページだけ DL される
+// ギャラリー 999: 1 回目は 2 ページ、以降は 3 ページ (サイト側でページ追加を模擬)
+const G_SYNC = "https://e-hentai.org/g/999/iiii9999/";
+const mockSync = path.join(cliTmp, "mock_sync.mjs");
+fs.writeFileSync(
+  mockSync,
+  `import fs from "node:fs";
+import path from "node:path";
+const cliTmpRef = ${JSON.stringify(cliTmp)};
+// runs は子プロセス間で永続化する (spawnSync ごとにモジュール state がリセットされるため)
+const runsFile = path.join(cliTmpRef, "sync_runs.txt");
+let runs = fs.existsSync(runsFile) ? parseInt(fs.readFileSync(runsFile, "utf8"), 10) : 0;
+const galleryHtml = (pages) =>
+  '<html><head><title>Sync Test - E-Hentai</title></head><body><h1 id="gn">Sync Test</h1>' +
+  Array.from({ length: pages }, (_, i) => '<a href="${G_SYNC}s/0123456789/1-' + (i + 1) + '/"><img src="x.jpg"></a>').join('') +
+  '</body></html>';
+const ok = (body, ct) => ({ ok: true, status: 200, text: async () => body, headers: { get: (k) => (String(k).toLowerCase() === "content-type" ? ct : null) }, arrayBuffer: async () => new ArrayBuffer(0) });
+globalThis.fetch = async (url) => {
+  const u = String(url);
+  if (/\\/s\\/[0-9a-f]{10}\\/\\d+-\\d+/.test(u)) {
+    const n = parseInt(u.match(/(\\d+)-\\d+/)[1], 10);
+    return ok('<html><body><img id="img" src="https://ae.example.invalid/' + n + '.webp"></body></html>', "text/html");
+  }
+  if (/\\/g\\/999\\//.test(u)) {
+    runs++;
+    fs.writeFileSync(runsFile, String(runs));
+    // 1 回目は 2 ページ、2 回目以降は 3 ページ (新規ページ追加を模擬)
+    return ok(galleryHtml(runs === 1 ? 2 : 3), "text/html");
+  }
+  if (/\\.webp$/.test(u)) {
+    return { ok: true, status: 200, text: async () => "", headers: { get: (k) => (String(k).toLowerCase() === "content-type" ? "image/webp" : null) }, arrayBuffer: async () => Buffer.from("WEBPDATA-" + u.slice(-10)) };
+  }
+  return { ok: false, status: 404, text: async () => "", headers: { get: () => "text/html" }, arrayBuffer: async () => new ArrayBuffer(0) };
+};
+const { runDownload } = await import(${JSON.stringify(pathToFileURL(scriptPath).href)});
+process.exitCode = await runDownload(process.argv.slice(2));
+`,
+);
+fs.rmSync(path.join(cliTmp, "failed_urls.txt"), { force: true });
+// 1 回目: 2 枚ダウンロード
+const r9a = spawnSync(process.execPath, [mockSync, G_SYNC, "--delay", "0", "--no-metadata"], { cwd: cliTmp, timeout: 120000, encoding: "utf8" });
+const syncDir = path.join(cliTmp, "999_Sync Test");
+cliCheck("差分: 1回目は2枚 DL される", r9a.status === 0 && fs.existsSync(syncDir) && fs.readdirSync(syncDir).filter((f) => f.endsWith(".webp")).length === 2, { out: r9a.stdout.slice(-300) });
+// 2 回目: サイト側で 3 ページに増えている → 新規 1 枚だけ DL、既存 2 枚はスキップ
+const r9b = spawnSync(process.execPath, [mockSync, G_SYNC, "--delay", "0", "--no-metadata", "--resync"], { cwd: cliTmp, timeout: 120000, encoding: "utf8" });
+cliCheck("差分: 2回目は3枚になる (新規1枚追加)", r9b.status === 0 && fs.readdirSync(syncDir).filter((f) => f.endsWith(".webp")).length === 3, { out: r9b.stdout.slice(-300) });
+cliCheck("差分: 2回目のサマリは 新規1/スキップ2", /新規1 \/ スキップ2 \/ 失敗0/.test(r9b.stdout), { out: r9b.stdout.slice(-300) });
+cliCheck("差分: --resync でも欠け報告なし (全ページ取得済み)", !/--resync: サイト側で見つからない/.test(r9b.stdout));
+// 3 回目: 1.png を手動削除して --resync → 欠け検出で再取得される
+fs.rmSync(path.join(syncDir, "1.webp"), { force: true });
+const r9c = spawnSync(process.execPath, [mockSync, G_SYNC, "--delay", "0", "--no-metadata", "--resync"], { cwd: cliTmp, timeout: 120000, encoding: "utf8" });
+cliCheck("差分: 削除したファイルは --resync で再取得される", r9c.status === 0 && fs.existsSync(path.join(syncDir, "1.webp")), { out: r9c.stdout.slice(-300) });
+cliCheck("差分: 欠け検出の警告が出る", /--resync: index にあるが実ファイルが欠けている/.test(r9c.stdout));
+
 fs.rmSync(cliTmp, { recursive: true, force: true });
 let cliFailed = 0;
 for (const c of cliChecks) {
