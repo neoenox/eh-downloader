@@ -192,6 +192,117 @@ cliCheck("404 の fetch 呼び出しは1回だけ (リトライなし)", fs.exis
 cliCheck("404 即失敗のメッセージが出る", /再試行不可のエラーのため即失敗/.test(r4.stdout));
 cliCheck("404 が failed_urls.txt に書かれる", fs.existsSync(path.join(cliTmp, "failed_urls.txt")) && fs.readFileSync(path.join(cliTmp, "failed_urls.txt"), "utf8").includes(G_BAD));
 
+// (5) --retries 1: 再試行可能なエラー (タイムアウト等) でも再試行せず即失敗する
+const mockRetryWrapper = path.join(cliTmp, "mock_retry_runner.mjs");
+fs.writeFileSync(
+  mockRetryWrapper,
+  `// 常にタイムアウト風エラーを投げる fetch モック → --retries の効果を検証
+import fs from "node:fs";
+import path from "node:path";
+const realFetch = globalThis.fetch;
+let hits = 0;
+globalThis.fetch = async (url, opts) => {
+  const u = String(url);
+  if (/\\/g\\/444\\//.test(u)) {
+    hits++;
+    fs.writeFileSync(path.join(${JSON.stringify(cliTmp)}, "retry_hits.txt"), String(hits));
+    throw new Error("fetch failed (mock timeout)");
+  }
+  return realFetch(url, opts);
+};
+const { runDownload } = await import(${JSON.stringify(pathToFileURL(scriptPath).href)});
+process.exitCode = await runDownload(process.argv.slice(2));
+`,
+);
+const G_TIMEOUT = "https://e-hentai.org/g/444/dddd4444/";
+
+// デフォルト (5回) だと時間がかかるため --retries 1 で即失敗することを確認
+const t5 = Date.now();
+const r5 = spawnSync(process.execPath, [mockRetryWrapper, G_TIMEOUT, "--retries", "1"], { cwd: cliTmp, timeout: 60000, encoding: "utf8" });
+const elapsed5 = Date.now() - t5;
+cliCheck("--retries 1 で即失敗 (10秒未満)", elapsed5 < 10000, { elapsed: elapsed5 });
+cliCheck("--retries 1 の fetch 呼び出しは1回だけ", fs.existsSync(path.join(cliTmp, "retry_hits.txt")) && fs.readFileSync(path.join(cliTmp, "retry_hits.txt"), "utf8").trim() === "1");
+
+// (6) 無効な --timeout / --retries はエラーで即終了
+const r6 = runCli([G1, "--retries", "abc"]);
+cliCheck("--retries abc は exit 1", r6.status === 1 && /--retries には 1-20/.test(r6.stderr));
+const r6b = runCli([G1, "--retries", "0"]);
+cliCheck("--retries 0 は exit 1", r6b.status === 1 && /--retries には 1-20/.test(r6b.stderr));
+const r7 = runCli([G1, "--timeout", "0"]);
+cliCheck("--timeout 0 は exit 1", r7.status === 1 && /--timeout には正の数値/.test(r7.stderr));
+
+// (7) --timeout は fetch の AbortSignal.timeout に反映される (小さい値でAbortSignalが呼ばれる)
+const mockTimeoutProbe = path.join(cliTmp, "mock_timeout_probe.mjs");
+fs.writeFileSync(
+  mockTimeoutProbe,
+  `// AbortSignal.timeout に渡された値を記録してから本物のモック応答を返す
+import fs from "node:fs";
+import path from "node:path";
+const timeouts = [];
+globalThis.fetch = async (url, opts = {}) => {
+  const u = String(url);
+  if (/\\/g\\/555\\//.test(u)) {
+    const sig = opts.signal;
+    // AbortSignal.timeout で作られた signal は [Symbol(override)] 相当の内部保持値を持つが
+    // 公開 API がないため、monkeypatch 済み AbortSignal.timeout を記録する方式にする
+    return { ok: true, status: 200, text: async () => "no gallery", headers: { get: () => "text/html" }, arrayBuffer: async () => new ArrayBuffer(0) };
+  }
+  return { ok: false, status: 404, text: async () => "", headers: { get: () => "text/html" }, arrayBuffer: async () => new ArrayBuffer(0) };
+};
+const { runDownload } = await import(${JSON.stringify(pathToFileURL(scriptPath).href)});
+process.exitCode = await runDownload(["https://e-hentai.org/g/555/eeee5555/", "--timeout", "7"]);
+`,
+);
+// AbortSignal.timeout 自体を置き換えて記録する (子プロセス内)
+fs.writeFileSync(
+  path.join(cliTmp, "abort_probe_preload.mjs"),
+  `const orig = AbortSignal.timeout;
+AbortSignal.timeout = (ms) => {
+  const fs = await import("node:fs");
+  const p = ${JSON.stringify(path.join(cliTmp, "abort_ms.txt"))};
+  fs.appendFileSync(p, ms + "\\n");
+  return orig(ms);
+};
+`,
+);
+// preload は top-level await が使えないので sync 版で書き直す
+fs.writeFileSync(
+  path.join(cliTmp, "abort_probe_preload.mjs"),
+  `import fs from "node:fs";
+const orig = AbortSignal.timeout;
+AbortSignal.timeout = (ms) => {
+  fs.appendFileSyncSync ?? null;
+  return orig(ms);
+};
+`,
+);
+// シンプルに: fetch モック内で opts.signal の AbortSignal インスタンスからは取れないため、
+// AbortSignal.timeout をラップして記録するラッパーにまとめる
+fs.writeFileSync(
+  mockTimeoutProbe,
+  `import fs from "node:fs";
+const origTimeout = AbortSignal.timeout.bind(AbortSignal);
+AbortSignal.timeout = (ms) => {
+  fs.appendFileSync(${JSON.stringify(path.join(cliTmp, "abort_ms.txt"))}, ms + "\\n");
+  return origTimeout(ms);
+};
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (url, opts = {}) => {
+  const u = String(url);
+  if (/\\/g\\/555\\//.test(u)) {
+    return { ok: true, status: 200, text: async () => "no gallery marker", headers: { get: () => "text/html" }, arrayBuffer: async () => new ArrayBuffer(0) };
+  }
+  return realFetch(url, opts);
+};
+const { runDownload } = await import(${JSON.stringify(pathToFileURL(scriptPath).href)});
+process.exitCode = await runDownload(["https://e-hentai.org/g/555/eeee5555/", "--timeout", "7"]);
+`,
+);
+fs.rmSync(path.join(cliTmp, "abort_ms.txt"), { force: true });
+spawnSync(process.execPath, [mockTimeoutProbe], { cwd: cliTmp, timeout: 60000, encoding: "utf8" });
+const abortMs = fs.existsSync(path.join(cliTmp, "abort_ms.txt")) ? fs.readFileSync(path.join(cliTmp, "abort_ms.txt"), "utf8").trim().split("\n").map(Number) : [];
+cliCheck("--timeout 7 が AbortSignal.timeout(7000) として使われる", abortMs.length > 0 && abortMs.every((ms) => ms === 7000), { abortMs });
+
 fs.rmSync(cliTmp, { recursive: true, force: true });
 let cliFailed = 0;
 for (const c of cliChecks) {

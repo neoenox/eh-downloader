@@ -116,6 +116,8 @@ node eh_download.mjs urls.txt ./pics --parallel 3   # 保存先とオプショ�
 | オプション | 説明 |
 |---|---|
 | `--parallel N` (`-j N`) | 同時接続数（デフォルト: 2、推奨 2〜3） |
+| `--timeout 秒` | リクエストのタイムアウト秒数（デフォルト: ページ 45 秒 / 画像 120 秒） |
+| `--retries N` | 失敗時の最大試行回数（デフォルト: ページ 5 / 画像 4。`1` で再試行なし。404 などの恒久的エラーは常に即失敗） |
 | `--original` | オリジナル画質を試みる（**要ログイン Cookie**。失敗時は通常画質にフォールバック） |
 | `--cookie "..."` | Cookie 文字列（`exhentai.org` や `--original` に必要）。環境変数 `EH_COOKIE` でも可 |
 | `--list <file>` | URL 一覧ファイルを一括処理（URL 直指定との併用は不可＝エラーになる） |
@@ -430,7 +432,7 @@ v1.3.0 で達成: docs 整合性チェッカーの CI 組み込み、README/docs
 ### 安定性・保守
 
 - [ ] **e2e テストの拡充** — モックサーバーを使った 509 / ネットワーク断・レジューム回りの境界テスト追加
-- [ ] **タイムアウト/リトライの設定化** — `--timeout` / `--retries` オプションの追加 (現在は内部固定値)
+- [x] **タイムアウト/リトライの設定化** — `--timeout` / `--retries` オプションを追加済み (ダウンローダーのリクエスト単位)
 - [x] **CI への docs 検証組み込み** — `check:docs` を CI で常時実行 (アセット名 / SHA-256 コマンド / CLI フラグ / 相対リンク・アンカーを検証)。リリース後のタグ自動照合は今後の課題
 - [x] **ビューワー終了フローの自動テスト** — ✕終了 (`/api/quit`) が detached 起動でもゾンビプロセスを残さず終了することを CI で検証
 
@@ -565,6 +567,8 @@ If one gallery fails (dead link, deleted, etc.), the rest continue and a summary
 | Option | Description |
 |---|---|
 | `--parallel N` (`-j N`) | Concurrent connections (default: 2, recommended 2–3) |
+| `--timeout SEC` | Request timeout in seconds (defaults: 45 s for pages / 120 s for images) |
+| `--retries N` | Max attempts on failure (defaults: 5 for pages / 4 for images; `1` disables retries. Permanent errors like 404 always fail immediately) |
 | `--original` | Try original quality (**requires login cookies**; falls back to normal quality on failure) |
 | `--cookie "..."` | Cookie string (required for `exhentai.org` and `--original`). Also via the `EH_COOKIE` env var |
 | `--list <file>` | Batch process a URL list file (cannot be combined with direct URLs — exits with an error) |
@@ -879,7 +883,7 @@ and this public roadmap itself.
 ### Stability & maintenance
 
 - [ ] **More e2e tests** — boundary tests around 509 / network loss / resume using the mock server
-- [ ] **Configurable timeouts/retries** — add `--timeout` / `--retries` options (currently hard-coded)
+- [x] **Configurable timeouts/retries** — `--timeout` / `--retries` options added (per-request, downloader)
 - [x] **Docs checks in CI** — `check:docs` runs on every CI build (asset names / SHA-256 commands / CLI flags / relative links & anchors). Automatic tag verification right after releases is still pending
 - [x] **Automated viewer quit-flow tests** — CI verifies the ✕ Quit button (`/api/quit`) exits cleanly without leaving a zombie process even when spawned detached
 

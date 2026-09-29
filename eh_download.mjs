@@ -24,6 +24,8 @@
  *   --original      オリジナル画質を試みる (要ログインCookie。失敗時は通常画質にフォールバック)
  *   --cookie "..."  Cookie文字列 (exhentai.org や --original にはログインCookieが必要)
  *   --delay 秒      リクエスト間隔 (デフォルト: 1.2)
+ *   --timeout 秒    リクエストのタイムアウト秒数 (デフォルト: ページ 45 / 画像 120)
+ *   --retries N     失敗時の最大試行回数 (デフォルト: ページ 5 / 画像 4。1 で再試行なし)
  *   --convert F     ダウンロード完了後に png / jpeg へ変換
  *   --quality N     --convert jpeg の品質 1-100 (デフォルト: 90)
  *   --del           --convert 成功後に元の WebP を削除
@@ -54,6 +56,8 @@ const UA =
 // 実行パラメータは batchMain() 冒頭で代入する (取得系関数から参照されるためモジュールスコープ)。
 let listFile = null, urlArgs = [], outRoot = ".";
 let wantOriginal = false, cookie = "", delayMs = 1200, parallel = 2;
+let timeoutSec = null, retries = null;
+let timeoutMsPage = 45000, timeoutMsImage = 120000, maxRetriesPage = 5, maxRetriesImage = 4;
 let convertFormat = null, convertQuality = 90, deleteAfterConvert = false, saveMetadata = true;
 
 function printHelpFromComment() {
@@ -63,13 +67,13 @@ function printHelpFromComment() {
     console.log(lines.slice(1, end).map((l) => l.replace(/^ \* ?/, "")).join("\n"));
   } catch {
     // SEA (単一exe) ではソースが読めないため固定文字列で代替
-    console.log("使い方: eh_download.mjs <ギャラリーURL...> [保存先ディレクトリ] [オプション]\n\nオプション:\n  --list <file>   URL一覧ファイルを一括処理 (1行1URL)\n  --parallel N    同時接続数 (デフォルト: 2。推奨 2〜3)\n  --original      オリジナル画質を試みる (要ログインCookie)\n  --cookie \"...\" Cookie文字列 (exhentai.org や --original には必要)\n  --delay 秒      リクエスト間隔 (デフォルト: 1.2)\n  --help          ヘルプ表示\n\n環境変数 EH_COOKIE でもCookieを渡せます。\n再実行するとダウンロード済みのファイルはスキップされます(レジューム)。");
+    console.log("使い方: eh_download.mjs <ギャラリーURL...> [保存先ディレクトリ] [オプション]\n\nオプション:\n  --list <file>   URL一覧ファイルを一括処理 (1行1URL)\n  --parallel N    同時接続数 (デフォルト: 2。推奨 2〜3)\n  --original      オリジナル画質を試みる (要ログインCookie)\n  --cookie \"...\" Cookie文字列 (exhentai.org や --original には必要)\n  --delay 秒      リクエスト間隔 (デフォルト: 1.2)\n  --timeout 秒    リクエストのタイムアウト秒数 (デフォルト: ページ 45 / 画像 120)\n  --retries N     失敗時の最大試行回数 (デフォルト: ページ 5 / 画像 4。1 で再試行なし)\n  --help          ヘルプ表示\n\n環境変数 EH_COOKIE でもCookieを渡せます。\n再実行するとダウンロード済みのファイルはスキップされます(レジューム)。");
   }
 }
 
 function parseCli(args) {
   // 値を1つ取るオプションの次の引数は位置引数から除外する
-  const VALUE_FLAGS = new Set(["--cookie", "--delay", "--parallel", "-j", "--list", "--convert", "--quality"]);
+  const VALUE_FLAGS = new Set(["--cookie", "--delay", "--parallel", "-j", "--list", "--convert", "--quality", "--timeout", "--retries"]);
   const positionals = [];
   for (let i = 0; i < args.length; i++) {
     if (VALUE_FLAGS.has(args[i])) { i++; continue; }
@@ -107,7 +111,26 @@ function parseCli(args) {
   const deleteAfterConvert = args.includes("--del");
   const saveMetadata = !args.includes("--no-metadata");
 
-  return { listFile, urlArgs, outRoot, wantOriginal, cookie, delayMs, parallel, convertFormat, convertQuality, deleteAfterConvert, saveMetadata };
+  // タイムアウト (秒) / リトライ回数。未指定時は従来の内部固定値を使う
+  const timeoutIdx = args.indexOf("--timeout");
+  const timeoutSec = timeoutIdx !== -1 ? parseFloat(args[timeoutIdx + 1]) : NaN;
+  const retriesIdx = args.indexOf("--retries");
+  const retries = retriesIdx !== -1 ? parseInt(args[retriesIdx + 1], 10) : NaN;
+  if (timeoutIdx !== -1 && (!Number.isFinite(timeoutSec) || timeoutSec <= 0)) {
+    console.error("エラー: --timeout には正の数値 (秒) を指定してください");
+    process.exit(1);
+  }
+  if (retriesIdx !== -1 && (!Number.isInteger(retries) || retries < 1 || retries > 20)) {
+    console.error("エラー: --retries には 1-20 の整数を指定してください (1 = 再試行なし)");
+    process.exit(1);
+  }
+
+  return {
+    listFile, urlArgs, outRoot, wantOriginal, cookie, delayMs, parallel,
+    convertFormat, convertQuality, deleteAfterConvert, saveMetadata,
+    timeoutSec: Number.isFinite(timeoutSec) ? timeoutSec : null,
+    retries: Number.isInteger(retries) ? retries : null,
+  };
 }
 
 // ---------- ユーティリティ ----------
@@ -244,7 +267,7 @@ function waitOrAbort(e, attempt, maxAttempts, retryLog) {
 }
 
 async function fetchText(url, referer) {
-  for (let attempt = 1; attempt <= 5; attempt++) {
+  for (let attempt = 1; attempt <= maxRetriesPage; attempt++) {
     try {
       await acquireSlot();
       const res = await fetch(url, {
@@ -254,7 +277,7 @@ async function fetchText(url, referer) {
           ...(referer ? { Referer: referer } : {}),
           ...(cookie && /e-hentai\.org|exhentai\.org/.test(new URL(url).host) ? { Cookie: cookie } : {}),
         },
-        signal: AbortSignal.timeout(45000),
+        signal: AbortSignal.timeout(timeoutMsPage),
         redirect: "follow",
       });
       const body = await res.text();
@@ -269,19 +292,19 @@ async function fetchText(url, referer) {
       return body;
     } catch (e) {
       if (isLimitError(e.message)) {
-        if (attempt === 5) throw e;
+        if (attempt === maxRetriesPage) throw e;
         const sec = 60 * attempt;
         pauseUntil = Math.max(pauseUntil, Date.now() + sec * 1000);
-        log(`⚠ 509検出: 全${parallel}接続を${sec}秒停止 → 自動再試行 (${attempt}/5)`);
+        log(`⚠ 509検出: 全${parallel}接続を${sec}秒停止 → 自動再試行 (${attempt}/${maxRetriesPage})`);
       } else {
-        await waitOrAbort(e, attempt, 5, (a) => log(`  ! 取得失敗 (${e.message}) - ${a * 3}秒後に再試行 (${a}/5)...`));
+        await waitOrAbort(e, attempt, maxRetriesPage, (a) => log(`  ! 取得失敗 (${e.message}) - ${a * 3}秒後に再試行 (${a}/${maxRetriesPage})...`));
       }
     }
   }
 }
 
 async function fetchImage(url, referer, dest) {
-  for (let attempt = 1; attempt <= 4; attempt++) {
+  for (let attempt = 1; attempt <= maxRetriesImage; attempt++) {
     try {
       await acquireSlot();
       const res = await fetch(url, {
@@ -291,7 +314,7 @@ async function fetchImage(url, referer, dest) {
           ...(referer ? { Referer: referer } : {}),
           ...(cookie && /e-hentai\.org|exhentai\.org/.test(new URL(url).host) ? { Cookie: cookie } : {}),
         },
-        signal: AbortSignal.timeout(120000),
+        signal: AbortSignal.timeout(timeoutMsImage),
         redirect: "follow",
       });
       const type = res.headers.get("content-type") || "";
@@ -310,11 +333,11 @@ async function fetchImage(url, referer, dest) {
       throw new Error(type.startsWith("text/html") ? "HTMLが返された(要ログインの可能性)" : `HTTP ${res.status}`);
     } catch (e) {
       if (isLimitError(e.message)) {
-        if (attempt === 4) return { ok: false, size: 0, error: e.message };
-        log(`⚠ ${e.message} (${attempt}/4)`); // 待機は acquireSlot が全ワーカー共通で処理
+        if (attempt === maxRetriesImage) return { ok: false, size: 0, error: e.message };
+        log(`⚠ ${e.message} (${attempt}/${maxRetriesImage})`); // 待機は acquireSlot が全ワーカー共通で処理
       } else {
         try {
-          await waitOrAbort(e, attempt, 4, (a) => log(`  ! ${e.message} → ${a * 5}秒後に再試行 (${a}/4)`));
+          await waitOrAbort(e, attempt, maxRetriesImage, (a) => log(`  ! ${e.message} → ${a * 5}秒後に再試行 (${a}/${maxRetriesImage})`));
         } catch (e2) {
           return { ok: false, size: 0, error: e2.message };
         }
@@ -531,7 +554,15 @@ async function batchMain(argv = process.argv.slice(2)) {
     printHelpFromComment();
     return argv.length === 0 ? 1 : 0;
   }
-  ({ listFile, urlArgs, outRoot, wantOriginal, cookie, delayMs, parallel, convertFormat, convertQuality, deleteAfterConvert, saveMetadata } = parseCli(argv));
+  ({ listFile, urlArgs, outRoot, wantOriginal, cookie, delayMs, parallel, convertFormat, convertQuality, deleteAfterConvert, saveMetadata, timeoutSec, retries } = parseCli(argv));
+  if (timeoutSec != null) {
+    timeoutMsPage = Math.round(timeoutSec * 1000);
+    timeoutMsImage = Math.round(timeoutSec * 1000);
+  }
+  if (retries != null) {
+    maxRetriesPage = retries;
+    maxRetriesImage = retries;
+  }
   if (convertFormat && convertFormat !== "png" && convertFormat !== "jpeg") {
     console.error("エラー: --convert は png または jpeg を指定してください");
     return 1;
