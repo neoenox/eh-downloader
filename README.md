@@ -10,7 +10,7 @@
 
 E-Hentai のギャラリー画像を一括ダウンロードし、WebP → PNG/JPEG に一括変換し、ブラウザで閲覧できる Node.js スクリプト集です。
 
-**1 コマンドで全部:** `run_all.bat <URL>` でダウンロード → 変換 → 閲覧まで自動実行されます。
+**1 コマンドで全部:** `run_all.bat <URL>` でダウンロード → 変換 → 閲覧まで自動実行されます。ビューワーは単一 exe としても配布・ビルドできます（下記）。
 
 `sharp` をインストールするとビューワーの一覧がサムネイル表示になり、大きなフォルダでも快適に閲覧できます（未インストールでもビューワー自体は動作します）。
 
@@ -87,7 +87,7 @@ node eh_download.mjs https://e-hentai.org/g/3553112/f4c015ef04/
 node eh_download.mjs https://e-hentai.org/g/3553112/f4c015ef04/ ./pics --original
 
 # 複数ギャラリーをスペース区切りで連続指定できる (バッチモードになる)
-download.bat https://e-hentai.org/g/3796163/8237f15916/ https://e-hentai.org/g/3796162/639e17ecbf/
+node eh_download.mjs https://e-hentai.org/g/AAA/xxx/ https://e-hentai.org/g/BBB/yyy/
 ```
 
 ### 複数ギャラリーを一括処理
@@ -148,7 +148,7 @@ node eh_download.mjs urls.txt ./pics --parallel 3   # 保存先とオプショ�
 node convert_images.mjs <画像ディレクトリ> [オプション]
 
 # 例
-node convert_images.mjs "3553112_badpeach - Asta (Honkai Star Rail) AI Generated"   # PNG へ
+node convert_images.mjs "3553112_gallery title"   # PNG へ
 node convert_images.mjs ./pics --format jpeg --quality 90    # JPEG (品質90)
 node convert_images.mjs ./pics --out ./png_out               # 出力先を指定
 node convert_images.mjs ./pics --force                       # 出力済みも再変換
@@ -182,7 +182,7 @@ node convert_images.mjs ./pics --del                         # 変換成功後�
 node image_viewer.mjs <フォルダ> [オプション]
 
 # 例
-node image_viewer.mjs "3553112_badpeach - Asta (Honkai Star Rail) AI Generated"
+node image_viewer.mjs "3553112_gallery title"
 node image_viewer.mjs ./pics --recursive          # サブフォルダもまとめて表示
 node image_viewer.mjs ./pics --port 9000          # ポート指定
 ```
@@ -254,7 +254,7 @@ Release には各 OS の `SHA256SUMS-<os>.txt` が添付されます。ダウン
 **Windows (簡単):** `verify_checksums.bat` を exe と同じフォルダに置いてダブルクリック。または PowerShell で:
 
 ```powershell
-# exe と SHA256SUMS-windows-x64.txt を同じフォルダに置いて実行
+# exe と SHA256SUMS-windows.txt を同じフォルダに置いて実行
 Get-FileHash .\eh-runall-windows-x64.exe -Algorithm SHA256
 # 期待値と見比べるか、verify_checksums.ps1 に .sha256 を渡して自動判定
 ```
@@ -268,8 +268,8 @@ certutil -hashfile eh-runall-windows-x64.exe SHA256
 **Linux / macOS:**
 
 ```bash
-sha256sum -c SHA256SUMS-linux-x64.txt      # OK と出れば一致
-shasum -a 256 -c SHA256SUMS-macos-arm64.txt  # macOS
+sha256sum -c SHA256SUMS-linux.txt      # OK と出れば一致
+shasum -a 256 -c SHA256SUMS-macos.txt  # macOS
 ```
 
 一致しない場合は改ざん・破損の可能性があるため、その実行ファイルは**破棄して再ダウンロード**してください。
@@ -321,20 +321,22 @@ node run_all.mjs https://e-hentai.org/g/3553112/f4c015ef04/
 node run_all.mjs urls.txt --format jpeg --del
 
 # ダウンロード済みフォルダを変換して閲覧 (ダウンロードはスキップ)
-node run_all.mjs --from "3553112_badpeach - ..." --format jpeg
+node run_all.mjs --from "3553112_gallery title" --format jpeg
 
 # 変換済みフォルダを単に開き直す
-node run_all.mjs --open-only "3553112_badpeach - ..."
+node run_all.mjs --open-only "3553112_gallery title"
 
 # フォルダを直接渡しても OK (D&D・「送る」メニューと同じ動作)
-node run_all.mjs "3553112_badpeach - ..."
+node run_all.mjs "3553112_gallery title"
 
 # 単一 exe でも同じ (Node.js 不要。リリースの eh-runall-*.exe または --runall ビルド)
 eh-runall.exe https://e-hentai.org/g/3553112/f4c015ef04/
-eh-runall.exe --open-only "3553112_badpeach - ..."
+eh-runall.exe --open-only "3553112_gallery title"
 
 # Windows なら run_all.bat をダブルクリック (URL入力 → 形式選択)
 ```
+
+> **ヒント:** `run_all.bat` を Windows の「送る」メニューに登録すると、ダウンロード済みフォルダを右クリック → 送る → run_all で変換 + 閲覧できます。詳細は [「送る」メニュー登録ガイド](docs/send-to.md)。
 
 ### run_all のオプション
 
@@ -370,7 +372,7 @@ eh-runall.exe --open-only "3553112_badpeach - ..."
   → 再実行: node eh_download.mjs --list "...failed_urls.txt"
 
 [2/3] 変換 (2 フォルダ → PNG)
-✔ 3553112_badpeach - ...   変換20 スキップ0 (2.1MB→18MB, 857%)
+✔ 3553112_gallery title   変換20 スキップ0 (2.1MB→18MB, 857%)
 
 ■ 全フェーズ完了   DL 2/2 ギャラリー成功 / 変換 2/2 フォルダ
 ```
@@ -388,7 +390,7 @@ node eh_download.mjs urls.txt --parallel 3 --convert jpeg --quality 90 --del
 
 # 従来どおり2段階でも実行可能
 node eh_download.mjs urls.txt --parallel 3
-node convert_images.mjs "3553112_badpeach - Asta (Honkai Star Rail) AI Generated" --format jpeg --quality 90
+node convert_images.mjs "3553112_gallery title" --format jpeg --quality 90
 ```
 
 > `--del` は `--convert` と組み合わせた場合だけ有効です。変換に成功した WebP だけを削除します。
@@ -417,6 +419,8 @@ node convert_images.mjs "3553112_badpeach - Asta (Honkai Star Rail) AI Generated
 [![CI](https://github.com/neoenox/eh-downloader/actions/workflows/ci.yml/badge.svg?style=flat-square&label=CI)](https://github.com/neoenox/eh-downloader/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/neoenox/eh-downloader?style=flat-square&logo=github&label=release)](https://github.com/neoenox/eh-downloader/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg?style=flat-square)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%E2%89%A518-339933.svg?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Issues](https://img.shields.io/github/issues/neoenox/eh-downloader?style=flat-square&label=issues)](https://github.com/neoenox/eh-downloader/issues)
 
 **English** | [日本語](#e-hentai-ダウンロード-画像変換ツール) | [Send-to menu guide](docs/send-to.md) | [Social preview guide](docs/social-preview.md) | [GIF demo proposal](docs/gif-demo.md) | [📖 Documentation index](docs/index.md)
 
@@ -470,8 +474,18 @@ Guides: [📖 Documentation index](docs/index.md) — [Send-to menu](docs/send-t
 | `test_eh_download.mjs` | Integration test (fetch-mocked, run with `node test_eh_download.mjs`) |
 | `image_viewer.mjs` | Browser-based image viewer |
 | `viewer.bat` | Windows launcher for the viewer (double-click for interactive mode) |
+| `build_exe.mjs` / `build.bat` | Single-exe build (Node.js SEA) |
 | `verify_checksums.bat` | SHA-256 tamper check for downloaded exes (double-click to run) |
 | `test_image_viewer.mjs` | Viewer integration test (run with `node test_image_viewer.mjs`) |
+
+## Using the bat launchers on Windows
+
+- **`run_all.bat`** … **recommended**. Enter a URL and it downloads → converts → views in one go. **Drag & drop or "Send to" a folder onto it to run convert → view only** (see the [Send-to menu guide](docs/send-to.md))
+- **`download.bat`** … double-click and enter a URL. A list file path (like `urls.txt`) also works. From a terminal, arguments work too: `download.bat <URL> --parallel 3`
+- **`convert.bat`** … double-click and answer the folder and format (PNG/JPEG). Installs `sharp` on first use. Also accepts arguments: `convert.bat <folder> --format jpeg`
+- **`viewer.bat`** … double-click and enter a folder (empty Enter = current directory). Also accepts arguments: `viewer.bat <folder> --recursive`
+
+> Note: the bat files use ASCII characters only because cmd.exe parses them with the ANSI code page (Japanese messages are printed by node).
 
 ## 1. Download: `eh_download.mjs`
 
@@ -651,7 +665,7 @@ Each Release ships a `SHA256SUMS-<os>.txt` so you can verify the downloaded bina
 **Windows (easy):** put `verify_checksums.bat` in the same folder as the exes and double-click it. Or with PowerShell:
 
 ```powershell
-# place the exe and SHA256SUMS-windows-x64.txt in the same folder
+# place the exe and SHA256SUMS-windows.txt in the same folder
 Get-FileHash .\eh-runall-windows-x64.exe -Algorithm SHA256
 # compare with the expected value, or feed a .sha256 sidecar to verify_checksums.ps1
 ```
@@ -665,8 +679,8 @@ certutil -hashfile eh-runall-windows-x64.exe SHA256
 **Linux / macOS:**
 
 ```bash
-sha256sum -c SHA256SUMS-linux-x64.txt        # OK means it matches
-shasum -a 256 -c SHA256SUMS-macos-arm64.txt  # macOS
+sha256sum -c SHA256SUMS-linux.txt        # OK means it matches
+shasum -a 256 -c SHA256SUMS-macos.txt  # macOS
 ```
 
 If a checksum does not match, the file may be corrupted or tampered with — **delete it and re-download**. For local builds, `node build_exe.mjs` prints the SHA-256 and writes an `<exe name>.sha256` sidecar next to the binary.
@@ -755,7 +769,25 @@ If some downloads fail, conversion and viewing still proceed and the exit code i
 
 ### Progress display
 
-Progress is condensed into colored one-line entries per gallery/folder (`✔` ok / `△` partial / `✖` failed), ending with a failure summary and a ready-to-paste retry command. Use `--verbose` to see the full child output instead.
+Progress is condensed into colored one-line entries per gallery/folder (`✔` ok / `△` partial / `✖` failed), ending with a failure summary and a ready-to-paste retry command:
+
+```text
+[1/3] Download
+✔ https://e-hentai.org/g/3553112/...   new 20, skipped 0
+△ https://e-hentai.org/g/9999999/...   new 5, skipped 0, failed 3
+
+⚠ Failed galleries: 1
+  △ https://e-hentai.org/g/9999999/...
+     new 5 / skipped 0 / failed 3 (re-run fetches only the failures)
+  → retry: node eh_download.mjs --list "...failed_urls.txt"
+
+[2/3] Convert (2 folders → PNG)
+✔ 3553112_gallery title   converted 20, skipped 0 (2.1MB→18MB, 857%)
+
+■ All phases complete   DL 2/2 galleries OK / convert 2/2 folders
+```
+
+Use `--verbose` to see the full child output instead.
 
 ### Running each script individually
 
