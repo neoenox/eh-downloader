@@ -403,6 +403,35 @@ node convert_images.mjs "3553112_gallery title" --format jpeg --quality 90
 | `2` | 一部失敗（`failed_urls.txt` / 再実行でリトライ可能） |
 | `1` | 致命的エラー（URL 不正・引数不足など） |
 
+## ロードマップ
+
+次回以降の機能追加候補です (順不同・実装保証なし)。興味のあるものがあれば Issue / PR でどうぞ。
+
+### 利便性
+
+- [ ] **ギャラリー検索 / タグ閲覧** — `metadata.json` に保存したタグ (artist / language / character) でダウンロード済みコレクションを横断検索・フィルタするビューワー拡張
+- [ ] **差分更新 (再同期)** — ギャラリーに新規ページが追加されたとき、既存フォルダに追加分だけをダウンロード
+- [ ] **exhentai 対応の案内整備** — Cookie 設定フローの対話化 (`--cookie` / `EH_COOKIE` の入力支援)
+- [ ] **サムネイルキャッシュの共有化** — `.thumbcache/` を中央一括管理にしてフォルダ移動時に再生成しない
+
+### 配布・インストール
+
+- [ ] **署名付きバイナリ** — Sigstore (cosign) などでリリースバイナリに署名し、SHA-256 に加えて署名検証を提供
+- [ ] **macOS の Gatekeeper 対策の軽減** — 署名/notarization による `xattr` コマンド不要化
+- [ ] **winget / Homebrew 対応** — パッケージマネージャからのインストール
+- [ ] **自動更新チェッカー** — `eh-runall --version` の結果を GitHub API と突き合わせ、新しいリリースを通知 (自動 DL はしない)
+
+### 安定性・保守
+
+- [ ] **e2e テストの拡充** — モックサーバーを使った 509 / ネットワーク断・レジューム回りの境界テスト追加
+- [ ] **タイムアウト/リトライの設定化** — `--timeout` / `--retries` オプションの追加 (現在は内部固定値)
+- [ ] **CI への docs 検証組み込みの拡大** — リリースワークフロー完成後の `check:docs --tag <新しいタグ>` 自動照合
+
+### その他
+
+- [ ] **デモ GIF の追加** — [docs/gif-demo.md](docs/gif-demo.md) の構成案 #1〜#4 の録画
+- [ ] **多言語対応** — ビューワー UI メッセージの英語化 (現在はコンソール表示中心の日本語)
+
 ## 免責
 
 利用は各サイトの利用規約と各国の法律を遵守のうえ、自己責任でお願いします。過度なアクセスは IP 制限の対象になるため `--parallel` は 2〜3、`--delay` は 1 秒以上を推奨します。
@@ -812,6 +841,36 @@ node convert_images.mjs "3553112_gallery title" --format jpeg --quality 90
 | `0` | Success |
 | `2` | Partial failure (`failed_urls.txt` / retry with a re-run) |
 | `1` | Fatal error (invalid URL, missing args, etc.) |
+
+## Roadmap
+
+Candidate features for upcoming releases (unordered, no guarantees). Open an
+Issue / PR if you are interested in any of them.
+
+### Convenience
+
+- [ ] **Gallery search / tag browsing** — search & filter downloaded collections across `metadata.json` tags (artist / language / character) from the viewer
+- [ ] **Incremental re-sync** — when new pages are added to a gallery, download only the additions into the existing folder
+- [ ] **Smoother exhentai setup** — interactive cookie configuration helper for `--cookie` / `EH_COOKIE`
+- [ ] **Shared thumbnail cache** — manage `.thumbcache/` centrally so moving folders does not force regeneration
+
+### Distribution & installation
+
+- [ ] **Signed binaries** — sign release binaries with Sigstore (cosign) to offer signature verification in addition to SHA-256
+- [ ] **Less macOS Gatekeeper friction** — signing / notarization to remove the `xattr` workaround
+- [ ] **winget / Homebrew support** — install via package managers
+- [ ] **Update checker** — compare `eh-runall --version` against the GitHub API and notify about newer releases (no auto-download)
+
+### Stability & maintenance
+
+- [ ] **More e2e tests** — boundary tests around 509 / network loss / resume using the mock server
+- [ ] **Configurable timeouts/retries** — add `--timeout` / `--retries` options (currently hard-coded)
+- [ ] **Broader CI docs checks** — run `check:docs --tag <new tag>` automatically after release builds
+
+### Misc
+
+- [ ] **Demo GIFs** — record demos #1–#4 from the [GIF demo proposal](docs/gif-demo.md)
+- [ ] **Localization** — English viewer UI messages (console output is currently Japanese-centric)
 
 ## Disclaimer
 
