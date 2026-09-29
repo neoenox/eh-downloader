@@ -428,8 +428,7 @@ v1.3.0 で達成: docs 整合性チェッカーの CI 組み込み、README/docs
 - [ ] **署名付きバイナリ** — Sigstore (cosign) などでリリースバイナリに署名し、SHA-256 に加えて署名検証を提供
 - [ ] **macOS の Gatekeeper 対策の軽減** — 署名/notarization による `xattr` コマンド不要化
 - [ ] **winget / Homebrew 対応** — パッケージマネージャからのインストール
-- [x] **自動更新チェッカー** — 実行時に GitHub Releases と照合し、新しいリリースがあれば通知 (自動 DL はしない。`--no-update-check` で無効化)
-- [ ] **更新通知のサイレント化 / 間隔制御** — 更新チェック結果のキャッシュと頻度制御 (現在は毎回問い合わせ)
+- [x] **自動更新チェッカー** — 実行時に GitHub Releases と照合し、新しいリリースがあれば通知 (自動 DL はしない。`--no-update-check` で無効化)。チェック結果は 24 時間キャッシュし、失敗時はキャッシュしないため次回再試行
 
 ### 安定性・保守
 
@@ -881,7 +880,7 @@ and this public roadmap itself.
 - [ ] **Signed binaries** — sign release binaries with Sigstore (cosign) to offer signature verification in addition to SHA-256
 - [ ] **Less macOS Gatekeeper friction** — signing / notarization to remove the `xattr` workaround
 - [ ] **winget / Homebrew support** — install via package managers
-- [x] **Update checker** — compares the running version against GitHub Releases and notifies about newer releases (no auto-download; disable with `--no-update-check`)
+- [x] **Update checker** — compares the running version against GitHub Releases and notifies about newer releases (no auto-download; disable with `--no-update-check`). Results are cached for 24 hours; failures are not cached so the next run retries
 - [ ] **Update-notice caching / throttling** — cache check results and rate-limit queries (currently checks on every run)
 
 ### Stability & maintenance

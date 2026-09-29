@@ -12,15 +12,18 @@
 // 仕様:
 //   - リポジトリは git remote origin から自動検出 (失敗時は neoenox/eh-downloader)
 //   - GitHub API へは 1 リクエストのみ (latest release エンドポイント、タイムアウト 5 秒)
+//   - 結果は 24 時間キャッシュ (CHECK_INTERVAL_MS)。キャッシュ中は API を叩かない
 //   - ネットワークエラー・オフライン・レート制限時は静かに諦める (本線を阻害しない)
 //   - SEA (単一exe) からは run_all.mjs 経由でライブラリとして呼ばれる
 
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 
 const DEFAULT_REPO = "neoenox/eh-downloader";
 const API_TIMEOUT_MS = 5000;
+export const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 時間
 
 // セマンティックバージョン比較: v1.2.10 > v1.2.9 を数値比較で判定する
 // 不正な形式は null を返す (更新判定を諦める)
@@ -48,12 +51,53 @@ function detectRepo() {
   return DEFAULT_REPO;
 }
 
+// --- キャッシュ (24 時間有効) ---
+// 保存先: OS の temp 直下の eh-update-check.json (単一exe でも書き込める場所)。
+// 形式: { checkedAt: <epoch ms>, latest: "vX.Y.Z", url: "...", repo: "owner/repo" }
+// 失敗 (オフライン等) はキャッシュしない → 次回また試す。
+function cacheFile() {
+  return path.join(os.tmpdir(), "eh-update-check.json");
+}
+
+function readCache() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(cacheFile(), "utf8"));
+    if (typeof raw.checkedAt !== "number" || typeof raw.latest !== "string") return null;
+    return raw;
+  } catch { return null; }
+}
+
+function writeCache(entry) {
+  try { fs.writeFileSync(cacheFile(), JSON.stringify(entry)); } catch { /* 書けなくても問題なし */ }
+}
+
+export function clearUpdateCache() {
+  try { fs.rmSync(cacheFile(), { force: true }); } catch { /* ignore */ }
+}
+
 // GitHub の latest release を取得して現在バージョンと比較する。
 // 新しいリリースがあれば { latest, url, repo } を返し、最新 / 不明なら null。
-export async function checkForUpdate(currentVersion, { repo = null, fetchImpl = globalThis.fetch } = {}) {
+// cacheMs (デフォルト 24 時間) 以内の問い合わせ結果はキャッシュを再利用する。
+// { force: true } でキャッシュを無視して必ず問い合わせる。
+export async function checkForUpdate(currentVersion, { repo = null, fetchImpl = globalThis.fetch, cacheMs = CHECK_INTERVAL_MS, force = false } = {}) {
   const cur = String(currentVersion || "").trim();
   if (!/^v?\d+\.\d+\.\d+$/i.test(cur)) return null; // dev ビルドなどは判定しない
   const repoSlug = repo || detectRepo();
+
+  // キャッシュ有効なら API を叩かず判定する (latest がキャッシュ時点と変わらない前提)
+  if (!force && cacheMs > 0) {
+    const c = readCache();
+    if (c && Date.now() - c.checkedAt < cacheMs) {
+      const cmp = compareVersions(cur, c.latest);
+      if (cmp === null || cmp >= 0) return null;
+      return {
+        latest: c.latest,
+        current: cur.startsWith("v") ? cur : "v" + cur,
+        repo: c.repo || repoSlug,
+        url: c.url || `https://github.com/${repoSlug}/releases/latest`,
+      };
+    }
+  }
 
   try {
     const res = await fetchImpl(`https://api.github.com/repos/${repoSlug}/releases/latest`, {
@@ -64,6 +108,10 @@ export async function checkForUpdate(currentVersion, { repo = null, fetchImpl = 
     if (!res.ok) return null; // 404 (リリースなし) / 403 (レート制限) など → 静かに諦める
     const data = await res.json();
     const latest = String(data.tag_name || "").trim();
+    // 成功時のみキャッシュに書く (失敗はキャッシュしない)
+    if (/^v?\d+\.\d+\.\d+$/i.test(latest)) {
+      writeCache({ checkedAt: Date.now(), latest, repo: repoSlug, url: String(data.html_url || `https://github.com/${repoSlug}/releases/latest`) });
+    }
     const cmp = compareVersions(cur, latest);
     if (cmp === null || cmp >= 0) return null;
     return {
