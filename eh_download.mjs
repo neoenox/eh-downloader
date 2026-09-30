@@ -317,7 +317,7 @@ async function fetchText(url, referer) {
         if (attempt === maxRetriesPage) throw e;
         const sec = 60 * attempt;
         pauseUntil = Math.max(pauseUntil, Date.now() + sec * 1000);
-        log(`⚠ ${formatLimitWait(sec)} → 自動再試行 (${attempt}/${maxRetriesPage})`);
+        log(`⚠ 509検出: 全${parallel}接続を${sec}秒停止 / ${formatLimitWait(sec)} → 自動再試行 (${attempt}/${maxRetriesPage})`);
       } else {
         await waitOrAbort(e, attempt, maxRetriesPage, (a) => log(`  ! 取得失敗 (${e.message}) - ${a * 3}秒後に再試行 (${a}/${maxRetriesPage})...`));
       }
