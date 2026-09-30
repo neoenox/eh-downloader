@@ -121,6 +121,28 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # CHANGELOG 更新を main に push するため完全な履歴と書き込み権限を取得
+          fetch-depth: 0
+          persist-credentials: true
+          ref: main
+
+      # タグから CHANGELOG.md の [Unreleased] を新リリースセクションに変換し main に反映
+      - name: Update CHANGELOG
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          node scripts/update_changelog.mjs "${{ github.ref_name }}"
+          if git diff --quiet CHANGELOG.md; then
+            echo "CHANGELOG.md に変更なし"
+          else
+            git add CHANGELOG.md
+            git commit -m "Update CHANGELOG.md for ${{ github.ref_name }}"
+            git push origin main
+          fi
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
