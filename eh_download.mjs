@@ -242,6 +242,26 @@ function extractGalleryMetadata(html, galleryUrl, gid, title) {
 // lastStart: 直前のリクエスト開始時刻 / pauseUntil: 509検出時に全ワーカーが待つ時刻
 let lastStart = 0;
 let pauseUntil = 0;
+let currentProgress = null;
+
+function formatLimitWait(sec, snapshot = currentProgress?.()) {
+  if (!snapshot) return `509: ${sec}秒待機中`;
+  const remaining = Math.max(0, Number(snapshot.remaining) || 0);
+  const etaMinutes = Math.max(0, Number(snapshot.etaMinutes) || 0);
+  const eta = etaMinutes > 0 ? `${etaMinutes}分` : "1分未満";
+  return `509: ${sec}秒待機中 (残り ${remaining} 枚 / 推定 ${eta})`;
+}
+
+function isExhentaiNlPage(html) {
+  if (/\/s\/[0-9a-f]{10}\//i.test(html)) return false;
+  return /content\s*warning|never\s*warn\s*me\s*again|[?&](?:nl|incognito)=1|name=["']nl["']/i.test(html);
+}
+
+function withNlBypass(url) {
+  const next = new URL(url);
+  next.searchParams.set("nl", "1");
+  return next.href;
+}
 
 async function acquireSlot() {
   for (;;) {
@@ -297,12 +317,31 @@ async function fetchText(url, referer) {
         if (attempt === maxRetriesPage) throw e;
         const sec = 60 * attempt;
         pauseUntil = Math.max(pauseUntil, Date.now() + sec * 1000);
-        log(`⚠ 509検出: 全${parallel}接続を${sec}秒停止 → 自動再試行 (${attempt}/${maxRetriesPage})`);
+        log(`⚠ 509検出: 全${parallel}接続を${sec}秒停止 / ${formatLimitWait(sec)} → 自動再試行 (${attempt}/${maxRetriesPage})`);
       } else {
         await waitOrAbort(e, attempt, maxRetriesPage, (a) => log(`  ! 取得失敗 (${e.message}) - ${a * 3}秒後に再試行 (${a}/${maxRetriesPage})...`));
       }
     }
   }
+}
+
+async function fetchGalleryText(url, referer) {
+  let body = await fetchText(url, referer);
+  if (new URL(url).hostname.toLowerCase() !== "exhentai.org" || !isExhentaiNlPage(body)) {
+    return body;
+  }
+
+  if (!cookie) {
+    throw new Error("ExHentai 用の cookie が不足しています (--cookie または EH_COOKIE を指定してください)");
+  }
+
+  const bypassUrl = withNlBypass(url);
+  log("▶ ExHentai の Content Warning を検出: nl=1 で再取得します");
+  body = await fetchText(bypassUrl, referer);
+  if (isExhentaiNlPage(body)) {
+    throw new Error("ExHentai の Content Warning を解除できません。cookie が有効か確認してください");
+  }
+  return body;
 }
 
 async function fetchImage(url, referer, dest) {
@@ -330,7 +369,7 @@ async function fetchImage(url, referer, dest) {
       if (res.status === 509 || /temporarily suspended|Please wait.*retry/i.test(asText)) {
         const sec = 60 * attempt;
         pauseUntil = Math.max(pauseUntil, Date.now() + sec * 1000);
-        throw new Error(`509/帯域制限: 全${parallel}接続を${sec}秒停止します`);
+        throw new Error(formatLimitWait(sec));
       }
       throw new Error(type.startsWith("text/html") ? "HTMLが返された(要ログインの可能性)" : `HTTP ${res.status}`);
     } catch (e) {
@@ -375,8 +414,15 @@ async function downloadGallery(galleryUrl) {
   log(`▶ ギャラリー: ${galleryUrl}`);
 
   // 1) 1ページ目を取得
-  const firstHtml = await fetchText(galleryUrl);
+  const firstHtml = await fetchGalleryText(galleryUrl);
   if (!/\/s\/[0-9a-f]{10}\//.test(firstHtml)) {
+    if (host === "exhentai.org") {
+      throw new Error(
+        cookie
+          ? "ExHentai のギャラリーを取得できません。URLまたはcookieが有効か確認してください"
+          : "ExHentai 用の cookie が不足しています (--cookie または EH_COOKIE を指定してください)",
+      );
+    }
     throw new Error("サムネイルが見つかりません (URLが無効/削除済み/要Cookieの可能性)");
   }
 
@@ -403,7 +449,7 @@ async function downloadGallery(galleryUrl) {
   const imagePageUrls = [];
   const seenPages = new Set();
   for (let i = 0; i < pageUrls.length; i++) {
-    const html = i === 0 ? firstHtml : await fetchText(pageUrls[i], galleryUrl);
+    const html = i === 0 ? firstHtml : await fetchGalleryText(pageUrls[i], galleryUrl);
     const urls = collectImagePages(html, pageUrls[i]);
     let added = 0;
     for (const u of urls) {
@@ -478,6 +524,19 @@ async function downloadGallery(galleryUrl) {
 
   // 5) ワーカープールで並列ダウンロード
   let cursor = 0;
+  let completedTasks = 0;
+  let emaTaskMs = null;
+  const progressSnapshot = () => {
+    const remaining = Math.max(0, tasks.length - completedTasks);
+    const estimatedPerTaskMs = emaTaskMs ?? Math.max(delayMs, 1000);
+    return {
+      remaining,
+      etaMinutes: remaining === 0
+        ? 0
+        : Math.max(1, Math.ceil((remaining * estimatedPerTaskMs) / 60000)),
+    };
+  };
+  currentProgress = progressSnapshot;
 
   const runOne = async ({ pageUrl, pageNum }) => {
     const name = String(pageNum).padStart(pad, "0");
@@ -528,15 +587,24 @@ async function downloadGallery(galleryUrl) {
     for (;;) {
       const i = cursor++;
       if (i >= tasks.length) return;
+      const startedAt = Date.now();
       try {
         await runOne(tasks[i]);
       } catch (e) {
         failed++;
         log(`[${String(tasks[i].pageNum).padStart(pad, "0")}] 失敗: ${e.message}`);
+      } finally {
+        const elapsed = Math.max(1, Date.now() - startedAt);
+        emaTaskMs = emaTaskMs == null ? elapsed : (emaTaskMs * 0.7) + (elapsed * 0.3);
+        completedTasks++;
       }
     }
   };
-  await Promise.all(Array.from({ length: Math.min(parallel, tasks.length) }, worker));
+  try {
+    await Promise.all(Array.from({ length: Math.min(parallel, tasks.length) }, worker));
+  } finally {
+    currentProgress = null;
+  }
 
   saveIndex();
   log(`■ 完了: 新規${done} / スキップ${skipped} / 失敗${failed} → ${outDir}`);
@@ -686,4 +754,10 @@ if (isDirectRun) {
   });
 }
 
-export { libraryMain as runDownload, libraryMain as main };
+export {
+  libraryMain as runDownload,
+  libraryMain as main,
+  formatLimitWait,
+  isExhentaiNlPage,
+  withNlBypass,
+};
