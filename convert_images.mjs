@@ -27,6 +27,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { getSharp } from "./sharp_loader.mjs";
 // 直接実行 (node convert_images.mjs ...) のときだけ起動する。
@@ -124,13 +125,24 @@ async function convertOne(file) {
     return;
   }
 
-  let pipe = sharp(src);
-  if (format === "jpeg") pipe = pipe.jpeg({ quality, mozjpeg: true });
-  else pipe = pipe.png({ compressionLevel: 9 });
-  await pipe.toFile(dest);
+  // Keep the previous output intact until a complete replacement is ready.
+  const temp = path.join(outDir, `.${path.basename(dest)}.${process.pid}.${crypto.randomUUID()}.tmp`);
+  let outSize;
+  try {
+    let pipe = sharp(src);
+    if (format === "jpeg") pipe = pipe.jpeg({ quality, mozjpeg: true });
+    else pipe = pipe.png({ compressionLevel: 9 });
+    await pipe.toFile(temp);
+    outSize = fs.statSync(temp).size;
+    if (outSize === 0) throw new Error("変換結果が空です");
+    fs.renameSync(temp, dest);
+  } finally {
+    try { fs.unlinkSync(temp); } catch (e) {
+      if (e.code !== "ENOENT") console.error(`一時ファイルの削除に失敗: ${temp}: ${e.message}`);
+    }
+  }
 
   const inSize = fs.statSync(src).size;
-  const outSize = fs.statSync(dest).size;
   bytesIn += inSize; bytesOut += outSize;
   done++;
   log(`[${String(done + skipped).padStart(pad)}] OK ${file} → ${path.basename(dest)} ${fmtKB(inSize)}→${fmtKB(outSize)}`);
@@ -149,7 +161,6 @@ const worker = async () => {
     } catch (e) {
       failed++;
       log(`[${String(i + 1).padStart(pad)}] 失敗: ${files[i]} - ${e.message}`);
-      try { fs.unlinkSync(path.join(outDir, files[i].replace(/\.webp$/i, "") + ext)); } catch {}
     }
   }
 };

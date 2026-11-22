@@ -84,6 +84,24 @@ try {
   assert(result.status === 2, `corrupt WebP should exit 2, got ${result.status}: ${result.stderr}\n${result.stdout}`);
   assert(/失敗1/.test(result.stdout), "corrupt WebP was not counted as failed");
 
+  // A failed --force conversion must not erase a previously valid output or its source.
+  const preserveInput = path.join(tmp, "preserve-input");
+  const preserveOut = path.join(tmp, "preserve-output");
+  fs.mkdirSync(preserveInput);
+  fs.mkdirSync(preserveOut);
+  const corruptSource = path.join(preserveInput, "same.webp");
+  const existingPng = path.join(preserveOut, "same.png");
+  fs.writeFileSync(corruptSource, Buffer.from("corrupt-webp"));
+  await sharp({ create: { width: 2, height: 2, channels: 3, background: "#ff0000" } })
+    .png().toFile(existingPng);
+  const originalPng = fs.readFileSync(existingPng);
+  result = run(preserveInput, ["--out", preserveOut, "--force", "--del", "--parallel", "1"]);
+  assert(result.status === 2, `failed --force conversion should exit 2: ${result.stderr}\\n${result.stdout}`);
+  assert(fs.readFileSync(existingPng).equals(originalPng), "failed conversion replaced existing PNG");
+  assert(fs.existsSync(corruptSource), "failed --del conversion deleted source WebP");
+  assert(!fs.readdirSync(preserveOut).some((name) => name.startsWith(".same.png.") && name.endsWith(".tmp")),
+    "failed conversion left a temporary file");
+
   console.log("PASS: convert_images.mjs integration coverage");
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
